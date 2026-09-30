@@ -1,0 +1,37 @@
+# Role + database ของ Hive Metastore บน pg-platform
+# password อยู่ใน OpenBao: secret/postgres/hive (username, password)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-hive
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"     # ต้องมี Secret ก่อน Cluster สร้าง role
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: pg-role-hive
+    template:
+      type: kubernetes.io/basic-auth       # CNPG managed role ต้องใช้ Secret ชนิดนี้
+      metadata:
+        labels:
+          cnpg.io/reload: "true"           # เปลี่ยน password ใน OpenBao แล้ว CNPG อัปเดต role ให้
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/hive, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/hive, property: password }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hive
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"      # หลัง Cluster
+spec:
+  name: hive
+  owner: hive
+  cluster:
+    name: pg-platform

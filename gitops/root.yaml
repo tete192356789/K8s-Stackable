@@ -1,0 +1,21 @@
+# App-of-Apps: Application หลักที่ ArgoCD ใช้อ่าน gitops/apps/ แล้วสร้าง Application ลูกให้
+# apply ด้วยมือครั้งเดียว: kubectl apply -f gitops/root.yaml
+# หลังจากนั้นเพิ่ม / แก้ service ด้วยการ git push ไฟล์ใน gitops/ เท่านั้น
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true          # ลบไฟล์ใน gitops/apps/ → ลบแค่ Application (ไม่มี finalizer จึงไม่ลบ resource ของ service)
+      selfHeal: true

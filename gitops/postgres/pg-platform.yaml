@@ -1,0 +1,33 @@
+# PostgreSQL 17 กลางของ platform (CNPG) — PoC: 1 instance
+# ทุก service (Hive, Keycloak, Airflow, Superset ...) ใช้ cluster นี้ แยก role / database กัน
+#   เพิ่ม service ใหม่: เพิ่ม role ใน spec.managed.roles + ไฟล์ใน roles/<service>.yaml
+# app ต่อที่: pg-platform-rw.database.svc.cluster.local:5432
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg-platform
+  namespace: database
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+
+  storage:
+    size: 20Gi
+    storageClass: longhorn
+
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits: { memory: 2Gi }
+
+  postgresql:
+    parameters:
+      shared_buffers: 512MB
+      max_connections: "200"
+
+  managed:
+    roles:
+      - name: hive
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-hive

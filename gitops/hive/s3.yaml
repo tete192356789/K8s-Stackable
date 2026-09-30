@@ -1,0 +1,49 @@
+# การเชื่อมต่อ S3 (SeaweedFS) สำหรับ product ของ Stackable ใน namespace data-platform (Hive, Trino ...)
+#   SecretClass s3-credentials → หา Secret ที่ติด label secrets.stackable.tech/class=s3-credentials ใน namespace ของ pod
+#   ExternalSecret สร้าง Secret นั้นจาก OpenBao (secret/seaweedfs/s3-admin)
+#   S3Connection seaweedfs → product อ้างถึงด้วย s3.reference: seaweedfs
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: s3-credentials
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: s3-credentials
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: s3-credentials
+    template:
+      metadata:
+        labels:
+          secrets.stackable.tech/class: s3-credentials
+  data:
+    - secretKey: accessKey
+      remoteRef: { key: seaweedfs/s3-admin, property: access_key }
+    - secretKey: secretKey
+      remoteRef: { key: seaweedfs/s3-admin, property: secret_key }
+---
+apiVersion: s3.stackable.tech/v1alpha1
+kind: S3Connection
+metadata:
+  name: seaweedfs
+  namespace: data-platform
+spec:
+  host: seaweedfs-s3.seaweedfs.svc.cluster.local
+  port: 8333
+  accessStyle: Path
+  credentials:
+    secretClass: s3-credentials

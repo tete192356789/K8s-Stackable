@@ -1,0 +1,28 @@
+# wave 30: Hive Metastore 4.2.0 + Iceberg REST catalog (namespace data-platform)
+# ต้องมีก่อน: OpenBao secret/postgres/hive และ secret/seaweedfs/s3-admin (ดู docs/install/09-gitops-hive.md)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hive
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/hive
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

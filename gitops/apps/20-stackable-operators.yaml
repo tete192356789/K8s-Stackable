@@ -1,0 +1,86 @@
+# wave 20: Stackable operators 26.7.0 (Helm chart จาก oci.stackable.tech/sdp-charts)
+# commons / secret / listener เป็นตัวบังคับ — product operator (hive, trino ...) เพิ่มทีละตัวตามที่ใช้
+# ทุกตัวต้องเป็น version เดียวกัน (release 26.7.0)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackable-commons-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: oci.stackable.tech/sdp-charts
+    chart: commons-operator
+    targetRevision: 26.7.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackable-operators
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackable-secret-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: oci.stackable.tech/sdp-charts
+    chart: secret-operator
+    targetRevision: 26.7.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackable-operators
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackable-listener-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: oci.stackable.tech/sdp-charts
+    chart: listener-operator
+    targetRevision: 26.7.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackable-operators
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackable-hive-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: oci.stackable.tech/sdp-charts
+    chart: hive-operator
+    targetRevision: 26.7.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackable-operators
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

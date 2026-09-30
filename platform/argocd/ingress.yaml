@@ -1,0 +1,20 @@
+# Argo CD UI ผ่าน Traefik (HTTPS, cert จาก internal CA) — argocd-server รัน HTTP ภายใน (server.insecure)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: argocd
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: argocd.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port: { number: 80 }

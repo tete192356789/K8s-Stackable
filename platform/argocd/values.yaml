@@ -1,0 +1,59 @@
+# Argo CD v3.5.3 (chart argo/argo-cd 10.9.4) — PoC แบบ minimal
+# - ไม่มี HA, ปิด dex (ภายหลังต่อ Keycloak ด้วย OIDC โดยตรง), ปิด notifications, ปิด ApplicationSet controller
+# - TLS จบที่ Traefik → argocd-server รัน HTTP (server.insecure)
+
+global:
+  domain: argocd.172.19.10.62.sslip.io
+
+configs:
+  params:
+    server.insecure: true
+  cm:
+    # ให้ Application มีสถานะ health → app-of-apps รอ sync-wave ก่อนหน้า Healthy ก่อนไป wave ถัดไป
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+  repositories:
+    # Helm chart ของ Stackable อยู่บน OCI registry (ไม่ต้องใช้ credential)
+    stackable-oci:
+      type: helm
+      name: stackable
+      url: oci.stackable.tech/sdp-charts
+      enableOCI: "true"
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+applicationSet:
+  replicas: 0
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+server:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+redis:
+  resources:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { memory: 128Mi }

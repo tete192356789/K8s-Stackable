@@ -28,13 +28,15 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 4 | Prometheus Operator CRDs + cert-manager + internal CA | 32.0.1 / 1.21.2 | [04-crds-cert-manager.md](docs/install/04-crds-cert-manager.md) | ✅ |
 | 5 | CloudNativePG operator | 1.30.1 | [05-cnpg-operator.md](docs/install/05-cnpg-operator.md) | ✅ |
 | 6 | SeaweedFS | 4.47 | [06-seaweedfs.md](docs/install/06-seaweedfs.md) | ✅ |
-| 7 | OpenBao + External Secrets | 2.7.0 / 2.11.0 | [07-openbao-eso.md](docs/install/07-openbao-eso.md) | 🔄 |
-| 8 | CNPG cluster (PostgreSQL 17) | 17.11 | — | |
-| 9 | Keycloak | 26.7 | — | |
-| 10 | ArgoCD | 3.5 | — | |
-| 11 | Prometheus + Alertmanager + Grafana, Loki, Vector | — | — | |
-| 12 | Stackable operators (commons, secret, listener + products) | 26.7.0 | — | |
-| 13 | OPA, Hive Metastore, Trino, Superset, Airflow | 26.7.0 | — | |
+| 7 | OpenBao + External Secrets | 2.7.0 / 2.11.0 | [07-openbao-eso.md](docs/install/07-openbao-eso.md) | ✅ |
+| 8 | Argo CD (last Helm-installed component) | 3.5.3 | [08-argocd.md](docs/install/08-argocd.md) | 🔄 |
+| 9 | GitOps: CNPG cluster (PostgreSQL 17), Stackable operators, Hive Metastore 4.2.0 + Iceberg REST | 17.11 / 26.7.0 | [09-gitops-hive.md](docs/install/09-gitops-hive.md) | |
+| 10 | Trino (+ Iceberg) | 481 | — | |
+| 11 | Keycloak | 26.7 | — | |
+| 12 | Prometheus + Alertmanager + Grafana, Loki, Vector | — | — | |
+| 13 | OPA, Superset, Airflow | 26.7.0 | — | |
+
+Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo CD syncs everything from `gitops/` (App-of-Apps, ordered with sync waves).
 
 The install guides under `docs/install/` are written in Thai.
 
@@ -45,7 +47,8 @@ The install guides under `docs/install/` are written in Thai.
 ## Repo layout
 
 ```
-platform/<service>/   Helm values and manifests for each service
+platform/<service>/   Helm values and manifests for the bootstrap layer (installed with Helm)
+gitops/               Argo CD App-of-Apps (root.yaml) and the manifests it syncs
 scripts/              prepull-images.sh (pull images and copy them to the workers), clean-k8s.sh (wipe the previous cluster)
 docs/install/         Step-by-step install guides
 docs/design/          Design notes and decisions

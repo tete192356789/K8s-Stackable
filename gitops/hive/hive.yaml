@@ -1,0 +1,72 @@
+# Hive Metastore 4.2.0 (Stackable 26.7.0) + Iceberg REST Catalog API ในตัว
+#   Thrift :9083 → Service hive-metastore (operator สร้างให้) — Trino ใช้ทางนี้
+#   REST   :9001 → Service hive-iceberg-rest (สร้างเองด้านล่าง) — Spark / PyIceberg ใช้ทางนี้
+# เหตุผล: docs/design/iceberg-catalog-hive4.md (ทางเลือก E)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: hive-db-credentials
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: hive-db-credentials
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/hive, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/hive, property: password }
+---
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image:
+    productVersion: 4.2.0
+  clusterConfig:
+    metadataDatabase:
+      postgresql:
+        host: pg-platform-rw.database.svc.cluster.local
+        database: hive
+        credentialsSecretName: hive-db-credentials
+    s3:
+      reference: seaweedfs
+  metastore:
+    config:
+      resources:
+        cpu: { min: 250m, max: "1" }
+        memory: { limit: 1536Mi }
+    configOverrides:
+      hive-site.xml:
+        hive.metastore.warehouse.dir: s3a://warehouse/
+        metastore.catalog.servlet.port: "9001"       # เปิด Iceberg REST Catalog API
+        metastore.catalog.servlet.auth: none          # PoC ภายใน cluster เท่านั้น — ห้ามเปิดออกนอก cluster; production ใช้ oauth2 (Keycloak)
+    roleGroups:
+      default:
+        replicas: 1
+---
+# Service ของ Iceberg REST API (operator สร้างให้แค่ port 9083)
+# ⚠️ ตรวจ label ของ pod หลัง deploy: kubectl -n data-platform get pods --show-labels
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-iceberg-rest
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selector:
+    app.kubernetes.io/name: hive
+    app.kubernetes.io/instance: hive
+    app.kubernetes.io/component: metastore
+  ports:
+    - name: iceberg-rest
+      port: 9001
+      targetPort: 9001
