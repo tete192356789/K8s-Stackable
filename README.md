@@ -38,12 +38,17 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 
 The install guides under `docs/install/` are written in Thai.
 
+## Design notes
+
+- [Iceberg catalog: Hive Metastore 4 vs Spark / PyIceberg](docs/design/iceberg-catalog-hive4.md) (Thai). Hive Metastore 4.0.1+ breaks Iceberg `HiveCatalog` clients (Spark, PyIceberg). This note covers the options: Hive 4.0.0, two metastores, or an Iceberg REST catalog.
+
 ## Repo layout
 
 ```
 platform/<service>/   Helm values and manifests for each service
 scripts/              prepull-images.sh (pull images and copy them to the workers), clean-k8s.sh (wipe the previous cluster)
 docs/install/         Step-by-step install guides
+docs/design/          Design notes and decisions
 ```
 
 On the control-plane node the files live under `/root/K8S-Stackable/<service>/`. Each guide says which files to copy there and which machine each command runs on.
