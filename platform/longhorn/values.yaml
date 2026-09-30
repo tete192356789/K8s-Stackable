@@ -1,0 +1,26 @@
+# Longhorn 1.12.1 — PoC (3 node, 4 vCPU / 15 GB, ไม่มี data disk แยก)
+# ข้อมูลเก็บใน /var/lib/longhorn บน root filesystem (~270 GB)
+# จำกัด Longhorn ไว้ ~80 GB ต่อ node ด้วย reserved 70% ที่เหลือเผื่อ OS, container image และ SeaweedFS (/data/seaweedfs)
+
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: 2
+  reclaimPolicy: Delete
+
+defaultSettings:
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: 2
+  storageReservedPercentageForDefaultDisk: 70
+  storageMinimalAvailablePercentage: 25
+  storageOverProvisioningPercentage: 100
+  replicaSoftAntiAffinity: false
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+
+csi:
+  attacherReplicaCount: 1
+  provisionerReplicaCount: 1
+  resizerReplicaCount: 1
+  snapshotterReplicaCount: 1
+
+longhornUI:
+  replicas: 1

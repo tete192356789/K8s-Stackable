@@ -1,0 +1,19 @@
+# ผลรันจาก cluster เดิม (มีข้อมูลภายใน: IP, ชื่อ node, workload เก่า)
+docs/cluster-inventory.txt
+docs/clean-dryrun.txt
+
+# CA certificate ของ PoC (สร้างใหม่ทุกครั้งที่ติดตั้ง cert-manager)
+platform-ca.crt
+platform-ca-bundle.pem
+
+# Secret — ห้าม commit
+init-keys.json
+*.snap
+
+# ไฟล์ที่สร้างระหว่างติดตั้งบน master
+rendered.yaml
+images.txt
+*.tar
+*.log
+
+.DS_Store

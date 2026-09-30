@@ -1,0 +1,36 @@
+# Service เพิ่มให้ Traefik เข้าได้ผ่าน IP ของ worker1 (.63) และ worker2 (.64)
+# ชี้ไปที่ pod ชุดเดียวกับ Service หลักของ chart (selector ตาม label ของ pod Traefik)
+# ⚠️ ตรวจ label ของ pod ก่อน apply: kubectl -n traefik get pods --show-labels
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-worker1
+  namespace: traefik
+  annotations:
+    metallb.io/loadBalancerIPs: 172.19.10.63
+    metallb.io/allow-shared-ip: node-ip
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: traefik
+  ports:
+    - { name: web, port: 80, targetPort: web, protocol: TCP }
+    - { name: websecure, port: 443, targetPort: websecure, protocol: TCP }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traefik-worker2
+  namespace: traefik
+  annotations:
+    metallb.io/loadBalancerIPs: 172.19.10.64
+    metallb.io/allow-shared-ip: node-ip
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: traefik
+  ports:
+    - { name: web, port: 80, targetPort: web, protocol: TCP }
+    - { name: websecure, port: 443, targetPort: websecure, protocol: TCP }

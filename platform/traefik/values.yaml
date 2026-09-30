@@ -1,0 +1,25 @@
+# Traefik 3.7.13 (chart traefik/traefik 41.6.0) — PoC
+# - DaemonSet: ทุก node มี Traefik 1 ตัว
+# - Service หลักของ chart ได้ IP ของ master (.62) จาก MetalLB
+#   Service สำหรับ .63 / .64 อยู่ใน extra-services.yaml (Service 1 ตัวได้ LoadBalancer IP แค่ 1 IP)
+# - externalTrafficPolicy: Cluster เพื่อให้ Service อื่นแชร์ IP ของ node ร่วมกับ Traefik ได้ (MetalLB บังคับให้ค่าตรงกัน)
+#   ข้อเสีย: Traefik เห็น source IP เป็นของ node แทน IP จริงของผู้ใช้
+
+deployment:
+  kind: DaemonSet
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 192Mi }
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+service:
+  type: LoadBalancer
+  annotations:
+    metallb.io/loadBalancerIPs: 172.19.10.62
+    metallb.io/allow-shared-ip: node-ip
+  spec:
+    externalTrafficPolicy: Cluster

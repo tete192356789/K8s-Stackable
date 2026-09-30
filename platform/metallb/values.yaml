@@ -1,0 +1,17 @@
+# MetalLB (chart 0.16.1) — PoC ใช้ L2 mode อย่างเดียว
+# ปิด FRR / frr-k8s (ใช้กับ BGP) เพื่อไม่ต้องดึง image เพิ่มและประหยัด RAM
+
+frrk8s:
+  enabled: false
+
+controller:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+speaker:
+  frr:
+    enabled: false
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 128Mi }

@@ -1,0 +1,27 @@
+# OpenBao 2.7.0 (chart openbao/openbao 0.30.0) — PoC
+# - Raft integrated storage แบบ 1 replica (ขยายเป็น 3 ได้ภายหลังโดยไม่ต้องย้ายข้อมูล)
+# - ปิด agent injector — service อื่นรับ secret ผ่าน External Secrets Operator แทน
+# - TLS ภายใน cluster ปิดไว้ (chart ค่าเริ่มต้น) ภายนอกใช้ HTTPS ผ่าน Traefik
+
+injector:
+  enabled: false
+
+server:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  dataStorage:
+    enabled: true
+    size: 2Gi
+    storageClass: longhorn
+  standalone:
+    enabled: false
+  ha:
+    enabled: true
+    replicas: 1
+    raft:
+      enabled: true
+      setNodeId: true
+
+ui:
+  enabled: true

@@ -1,0 +1,18 @@
+# External Secrets Operator 2.11.0 (chart external-secrets/external-secrets 2.11.0) — PoC
+# ดึง secret จาก OpenBao มาสร้างเป็น Kubernetes Secret
+
+installCRDs: true
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 128Mi }
+
+webhook:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 96Mi }
+
+certController:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 96Mi }

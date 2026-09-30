@@ -1,0 +1,40 @@
+# Internal CA สำหรับ PoC
+#   selfsigned-bootstrap (ClusterIssuer) ──ออก──▶ platform-ca (Certificate, isCA) ──ใช้เป็น──▶ platform-ca (ClusterIssuer)
+# ทุก service ขอ certificate จาก ClusterIssuer "platform-ca"
+# เครื่องผู้ใช้ต้อง import CA certificate (secret platform-ca, key ca.crt) ครั้งเดียว browser ถึงจะเชื่อ
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-bootstrap
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: platform-ca
+  namespace: cert-manager          # ClusterIssuer แบบ CA อ่าน secret จาก namespace ของ cert-manager
+spec:
+  isCA: true
+  commonName: K8s-Stackable PoC Root CA
+  subject:
+    organizations: [K8s-Stackable PoC]
+  secretName: platform-ca
+  duration: 87600h                 # 10 ปี
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-bootstrap
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: platform-ca
+spec:
+  ca:
+    secretName: platform-ca

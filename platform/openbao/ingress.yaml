@@ -1,0 +1,21 @@
+# OpenBao UI / API ผ่าน Traefik (HTTPS, cert จาก internal CA)
+# OpenBao มีระบบ login ของตัวเอง (token / userpass / OIDC) จึงไม่ต้องใส่ Basic Auth
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openbao
+  namespace: openbao
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: bao.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openbao
+                port: { number: 8200 }

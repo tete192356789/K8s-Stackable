@@ -1,0 +1,26 @@
+# cert-manager v1.21.2 (chart jetstack/cert-manager v1.21.2) — PoC
+
+crds:
+  enabled: true
+  keep: true            # ถ้า helm uninstall จะไม่ลบ CRD (กัน Certificate ทั้งหมดหายตามไปด้วย)
+
+replicaCount: 1
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 128Mi }
+
+webhook:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 64Mi }
+
+cainjector:
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+startupapicheck:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 64Mi }

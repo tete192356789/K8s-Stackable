@@ -1,0 +1,70 @@
+# MetalLB IP pool — PoC: ไม่มี IP ว่าง จึงใช้ IP ของ node เอง แยก 1 pool ต่อ node
+# ⚠️ อ่านหมายเหตุใน docs/install/02-metallb.md ก่อนแก้ไฟล์นี้
+#
+# กติกา:
+#   - แต่ละ pool มี IP ของ node นั้นตัวเดียว (/32) และให้ node นั้นเท่านั้นเป็นคนประกาศ (nodeSelectors)
+#     ห้ามให้ node อื่นประกาศ IP ของ node นี้ ไม่อย่างนั้น IP จะชนกัน และ SSH กับ API server จะหลุด
+#   - autoAssign: false  → Service ต้องขอ IP เองผ่าน annotation metallb.io/loadBalancerIPs
+#                          ป้องกัน MetalLB แจก IP ของ node ให้ Service อื่นโดยไม่ตั้งใจ
+#
+# Production: เปลี่ยนเป็น pool เดียวที่เป็น IP ว่างจริง และลบ nodeSelectors / autoAssign ออก
+
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: node-master
+  namespace: metallb-system
+spec:
+  addresses: [172.19.10.62/32]
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: node-master
+  namespace: metallb-system
+spec:
+  ipAddressPools: [node-master]
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: master
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: node-worker1
+  namespace: metallb-system
+spec:
+  addresses: [172.19.10.63/32]
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: node-worker1
+  namespace: metallb-system
+spec:
+  ipAddressPools: [node-worker1]
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: worker1
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: node-worker2
+  namespace: metallb-system
+spec:
+  addresses: [172.19.10.64/32]
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: node-worker2
+  namespace: metallb-system
+spec:
+  ipAddressPools: [node-worker2]
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: worker2

@@ -1,0 +1,56 @@
+# SeaweedFS 4.47 (chart seaweedfs/seaweedfs 4.47.0) — PoC
+#   master ×1, volume ×3 (node ละ 1 ตัว), filer ×1 + S3 gateway ในตัว filer
+#   ข้อมูล object เก็บบน disk ของ node โดยตรง (/data/seaweedfs) ไม่ผ่าน Longhorn เพื่อไม่ให้ replicate ซ้อนกัน
+#   replication "001" = เก็บ 2 ชุดบนคนละ server
+#   จำกัดพื้นที่ ~90 GB ต่อ node (maxVolumes 90 × volume ละ 1 GB)
+
+global:
+  enableReplication: true
+  replicationPlacement: "001"
+
+master:
+  replicas: 1
+  volumeSizeLimitMB: 1024
+  defaultReplication: "001"
+  data:
+    type: persistentVolumeClaim     # metadata ของ master เล็กมาก เก็บบน Longhorn ให้ย้าย node ได้
+    size: 1Gi
+    storageClass: longhorn
+  logs:
+    type: emptyDir
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+volume:
+  replicas: 3                       # chart ตั้ง podAntiAffinity ไว้แล้ว → ได้ node ละ 1 ตัว
+  minFreeSpacePercent: 10
+  dataDirs:
+    - name: data1
+      type: hostPath
+      hostPathPrefix: /data/seaweedfs
+      maxVolumes: 90
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+filer:
+  replicas: 1
+  defaultReplicaPlacement: "001"
+  data:
+    type: persistentVolumeClaim     # metadata ของ filer (leveldb) เก็บบน Longhorn
+    size: 5Gi
+    storageClass: longhorn
+  logs:
+    type: emptyDir
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  s3:
+    enabled: true                   # S3 gateway รันในตัว filer (ประหยัด RAM กว่าแยก deployment)
+    enableAuth: true                # chart สร้าง secret seaweedfs-s3-secret (admin + read key) ให้อัตโนมัติ
+    createBuckets:
+      - name: warehouse             # Iceberg / Hive (Trino)
+      - name: loki                  # log ของ Loki
+      - name: airflow-logs          # remote log ของ Airflow
+      - name: backups               # Barman (CNPG) และ backup อื่น ๆ

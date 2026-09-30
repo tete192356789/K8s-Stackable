@@ -1,0 +1,10 @@
+# CloudNativePG operator 1.30.1 (chart cnpg/cloudnative-pg 0.29.1) — PoC
+
+replicaCount: 1
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 256Mi }
+
+monitoring:
+  podMonitorEnabled: true          # CRD ของ Prometheus Operator ติดตั้งไว้แล้ว (04) Prometheus จะเก็บ metric ของ operator ได้ทันทีที่ติดตั้ง

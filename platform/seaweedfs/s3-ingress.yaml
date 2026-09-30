@@ -1,0 +1,23 @@
+# เปิด S3 endpoint ของ SeaweedFS ผ่าน Traefik (HTTPS, cert จาก internal CA)
+# S3 มีระบบ auth ของตัวเอง (access key / secret key) จึงไม่ต้องใส่ Basic Auth
+# ใช้แบบ path-style เท่านั้น: https://s3.172.19.10.62.sslip.io/<bucket>/<key>
+# service ใน cluster ไม่ต้องผ่าน Ingress นี้ ให้ใช้ http://seaweedfs-s3.seaweedfs.svc:8333 ตรง ๆ
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seaweedfs-s3
+  namespace: seaweedfs
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: s3.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seaweedfs-s3
+                port: { number: 8333 }

@@ -1,0 +1,35 @@
+# Wildcard certificate จาก internal CA ใช้เป็น certificate หลักของ Traefik
+# Ingress / IngressRoute ที่เปิด TLS โดยไม่ระบุ secret จะใช้ certificate นี้อัตโนมัติ
+# ต้องติดตั้ง cert-manager และ internal-ca.yaml ก่อน
+# เมื่อได้ DNS จริงขององค์กร ให้เพิ่ม "*.<domain>" ใน dnsNames
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-platform
+  namespace: traefik
+spec:
+  secretName: wildcard-platform-tls
+  duration: 2160h                  # 90 วัน cert-manager ต่ออายุให้เองก่อนหมด 15 วัน
+  renewBefore: 360h
+  dnsNames:
+    - "*.172.19.10.62.sslip.io"
+    - "*.172.19.10.63.sslip.io"
+    - "*.172.19.10.64.sslip.io"
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: platform-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default                    # ต้องชื่อ default ถึงจะเป็น certificate หลักของ Traefik
+  namespace: traefik
+spec:
+  defaultCertificate:
+    secretName: wildcard-platform-tls

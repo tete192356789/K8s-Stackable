@@ -1,0 +1,3 @@
+# PostgreSQL image ที่ CNPG Cluster ของ PoC ใช้ (ดึงล่วงหน้าเพราะใหญ่และ internet ช้า)
+# standard = มี locale และ extension ครบกว่า minimal, trixie = Debian 13
+ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
