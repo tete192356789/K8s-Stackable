@@ -1,6 +1,6 @@
 # Iceberg catalog: ปัญหา Hive Metastore 4 กับ Spark / PyIceberg และทางเลือก
 
-> สถานะ: **รอตัดสินใจ** — ต้องตอบก่อนติดตั้ง Hive Metastore ว่า PoC จะใช้ Spark (หรือ PyIceberg) อ่าน/เขียนตาราง Iceberg หรือไม่
+> สถานะ: **รอตัดสินใจ / รอทดสอบ** — ติดตั้ง Hive 4.2.0 ได้ตามแผน; ถ้า PoC ใช้ Spark หรือ PyIceberg ต้องทดสอบทางเลือก E (REST API ในตัว HMS) ก่อน
 > ข้อมูล ณ 2026-09-30: Stackable SDP 26.7.0, Trino 481, Iceberg 1.10.1 / 1.11.0
 
 ## สรุป
@@ -8,13 +8,15 @@
 - **Trino 481 ใช้ Hive Metastore 4.2.0 ได้ปกติ**
 - **Spark, PyIceberg (และ engine อื่นที่ใช้ Iceberg `HiveCatalog`) ใช้กับ Hive Metastore 4.0.1 ขึ้นไปไม่ได้** — error `Invalid method name: 'get_table'`
 - Hive Metastore **4.0.0** ยังใช้ได้กับทุก engine แต่ **deprecated ใน SDP 26.7** (SDP รุ่นถัดไปอาจเลิกรองรับ)
-- ทางออกระยะยาวคือ **Iceberg REST catalog** — แต่ Stackable TrinoCatalog แบบ `iceberg` รองรับแค่ Hive Metastore ต้องตั้งเองด้วย connector แบบ `generic`
+- ทางออกคือให้ Spark / PyIceberg คุยผ่าน **Iceberg REST catalog** แทน Thrift
+- **Hive Metastore 4.1+ (รวม 4.2.0) มี Iceberg REST Catalog API ในตัว** (HIVE-28059) — HMS ตัวเดียวให้ Trino ใช้ Thrift และให้ Spark / PyIceberg ใช้ REST กับตารางชุดเดียวกันได้ **(ทางเลือก E — ต้องทดสอบว่า image ของ Stackable เปิดใช้ได้)**
+- ถ้าจะใช้ REST catalog ตัวอื่น (เช่น Lakekeeper) ฝั่ง Trino ต้องตั้งเองด้วย TrinoCatalog แบบ `generic` เพราะแบบ `iceberg` ของ Stackable รองรับแค่ Hive Metastore
 
 | ถ้า PoC… | ใช้ |
 |---|---|
 | ใช้ Trino อย่างเดียว | Hive Metastore **4.2.0** (แผนเดิม) — ทางเลือก D |
-| ใช้ Spark / PyIceberg ด้วย | Hive Metastore **4.0.0** — ทางเลือก A (แบบเดียวกับ demo ของ Stackable) |
-| วางแผน production ระยะยาว | ทดลอง **REST catalog (Lakekeeper)** — ทางเลือก C |
+| ใช้ Spark / PyIceberg ด้วย | **ทดสอบทางเลือก E ก่อน** (Hive 4.2.0 + REST API ในตัว) ถ้าใช้ไม่ได้ → ทางเลือก A (Hive 4.0.0 แบบเดียวกับ demo ของ Stackable) |
+| วางแผน production ระยะยาว | ทางเลือก E ถ้าผลทดสอบผ่าน หรือ REST catalog แยก (Lakekeeper) — ทางเลือก C |
 
 ---
 
@@ -80,14 +82,14 @@ org.apache.thrift.TApplicationException: Invalid method name: 'get_table'
 
 ## 3. ทางเลือก
 
-| | A. Hive 4.0.0 | B. Hive 2 ตัว | C. REST catalog | D. ไม่ใช้ Spark |
-|---|---|---|---|---|
-| คำอธิบาย | ใช้ Hive Metastore 4.0.0 ตัวเดียวทั้ง Trino และ Spark | 4.2.0 สำหรับตาราง Hive + 4.0.0 สำหรับตาราง Iceberg | ย้าย catalog ของ Iceberg ไป REST catalog (เช่น Lakekeeper) | Trino อย่างเดียว ใช้ 4.2.0 ตามแผน |
-| Spark / PyIceberg ใช้ได้ | ✅ | ✅ | ✅ | ❌ |
-| Stackable รองรับตรง ๆ | ✅ (แต่ deprecated) | ✅ (แต่ deprecated) | ⚠️ Trino ต้องใช้ `generic` connector, catalog ติดตั้งเอง | ✅ |
-| ความเสี่ยงระยะยาว | สูง — 4.0.0 อาจหายใน SDP รุ่นถัดไป | สูง (ส่วน Iceberg) | ต่ำ — ทิศทางหลักของ Iceberg | ต่ำ |
-| RAM เพิ่ม (PoC) | 0 | ~1.5 GB (Hive ตัวที่ 2) — **PoC แทบไม่เหลือ** | catalog (Lakekeeper ~100–200 MB) — ตัด Hive ออกได้ถ้าไม่มีตาราง Hive แบบเดิม | 0 |
-| ความยาก | ต่ำ | ปานกลาง | ปานกลาง | ต่ำ |
+| | A. Hive 4.0.0 | B. Hive 2 ตัว | C. REST catalog แยก | D. ไม่ใช้ Spark | **E. Hive 4.2.0 + REST ในตัว** |
+|---|---|---|---|---|---|
+| คำอธิบาย | ใช้ Hive Metastore 4.0.0 ตัวเดียวทั้ง Trino และ Spark | 4.2.0 สำหรับตาราง Hive + 4.0.0 สำหรับตาราง Iceberg | ย้าย catalog ของ Iceberg ไป REST catalog อีกตัว (เช่น Lakekeeper) | Trino อย่างเดียว ใช้ 4.2.0 ตามแผน | HMS 4.2.0 ตัวเดียว: Trino ใช้ Thrift, Spark / PyIceberg ใช้ REST API ของ HMS |
+| Spark / PyIceberg ใช้ได้ | ✅ | ✅ | ✅ | ❌ | ✅ (ถ้า image ของ Stackable เปิดใช้ได้) |
+| Stackable รองรับตรง ๆ | ✅ (แต่ deprecated) | ✅ (แต่ deprecated) | ⚠️ Trino ต้องใช้ `generic` connector, catalog ติดตั้งเอง | ✅ | ⚠️ Trino ใช้แบบ `iceberg` ได้ตามเดิม แต่การเปิด REST ของ HMS ต้องตั้งเอง (`configOverrides` + Service เพิ่ม) |
+| ความเสี่ยงระยะยาว | สูง — 4.0.0 อาจหายใน SDP รุ่นถัดไป | สูง (ส่วน Iceberg) | ต่ำ — ทิศทางหลักของ Iceberg | ต่ำ | ต่ำ — ใช้ LTS และ API มาตรฐาน |
+| RAM เพิ่ม (PoC) | 0 | ~1.5 GB (Hive ตัวที่ 2) — **PoC แทบไม่เหลือ** | catalog (Lakekeeper ~100–200 MB) — ตัด Hive ออกได้ถ้าไม่มีตาราง Hive แบบเดิม | 0 | 0 |
+| ความยาก | ต่ำ | ปานกลาง | ปานกลาง | ต่ำ | ปานกลาง (ยังไม่ได้ทดสอบกับ Stackable) |
 
 ---
 
@@ -180,9 +182,65 @@ spec:
 | TLS กับ internal CA | — | ต้อง mount CA เองด้วย `podOverrides` (PoC ใช้ HTTP ภายใน cluster จึงไม่ต้อง) |
 | Trino อัปเกรดแล้วชื่อ property เปลี่ยน | operator จัดการ | แก้ YAML เอง |
 
-**ใช้ `configOverrides` บนแบบ `iceberg` แทนไม่ได้** — แบบ `iceberg` บังคับต้องมี `metastore` ทำให้ operator ใส่ `hive.metastore.uri` เสมอ ถ้าเปลี่ยนเป็น `iceberg.catalog.type=rest` property นั้นจะไม่ถูกใช้ และ Trino ไม่ยอม start เมื่อมี property ที่ไม่ได้ใช้ (`Configuration property ... was not used`)
+**ไม่แนะนำให้ใช้ `configOverrides` บนแบบ `iceberg` แทน** — แบบ `iceberg` บังคับต้องมี `metastore` ทำให้ operator ใส่ `hive.metastore.uri` เสมอ ถ้าเปลี่ยนเป็น `iceberg.catalog.type=rest` property นั้นจะไม่ถูกใช้ ซึ่ง Trino มักไม่ยอม start (`Configuration property ... was not used`) ทีม Stackable เคยเสนอวิธี "ใส่ metastore หลอก + `configOverrides`" ใน [discussion #41](https://github.com/orgs/stackabletech/discussions/41) แต่วันถัดมาแนะนำแบบ `generic` แทน และผู้ถามยืนยันว่าแบบ `generic` ใช้ได้ — ยังไม่ได้ทดสอบวิธี `configOverrides` เอง
 
 > ⚠️ config ข้างบนตรวจกับเอกสาร Stackable 26.7 แล้ว แต่ **ยังไม่ได้ทดสอบกับ Trino 481 จริง** — ต้องทดสอบใน PoC ก่อนใช้
+
+### E. Hive Metastore 4.2.0 + Iceberg REST Catalog API ในตัว
+
+ตั้งแต่ Hive 4.1 (HIVE-28059) Hive Metastore เปิด **Iceberg REST Catalog API** ได้ในตัว — HMS ตัวเดียวให้บริการ 2 ช่องทางกับตารางชุดเดียวกัน
+
+```
+Trino ──Thrift :9083──┐   (Stackable TrinoCatalog แบบ iceberg ตามเดิม)
+                      ├──▶ Hive Metastore 4.2.0 ──▶ PostgreSQL (CNPG)
+Spark ──REST :9001────┤   (ไม่ใช้ Thrift → ไม่เจอปัญหา get_table)
+PyIceberg ──REST──────┘
+```
+
+| เรื่อง | ค่า (จากเอกสาร Hive) |
+|---|---|
+| เปิดใช้ | `metastore.catalog.servlet.port` (ค่าเริ่มต้น `-1` = ปิด; image ทางการของ Hive ใช้ 9001) |
+| Endpoint | `http://<hms>:<port>/iceberg/v1/...` เช่น `/iceberg/v1/config`, `/iceberg/v1/namespaces/default/tables` |
+| Auth (`metastore.catalog.servlet.auth`) | `jwt` (ค่าเริ่มต้น, ตรวจ token ด้วย JWKS), `oauth2` (ต่อ Keycloak ได้), `simple` / `none` (ทดสอบเท่านั้น) |
+
+**ร่าง config (ยังไม่ได้ทดสอบ)** — เปิด REST ผ่าน `configOverrides` ของ HiveCluster แล้วสร้าง Service เพิ่ม เพราะ Service ของ Stackable เปิดแค่ 9083
+
+```yaml
+apiVersion: hive.stackable.tech/v1alpha1
+kind: HiveCluster
+metadata:
+  name: hive
+spec:
+  image:
+    productVersion: 4.2.0
+  metastore:
+    configOverrides:
+      hive-site.xml:
+        metastore.catalog.servlet.port: "9001"
+        metastore.catalog.servlet.auth: "none"          # PoC ภายใน cluster เท่านั้น — production ใช้ oauth2 กับ Keycloak
+  # ... ส่วนอื่นเหมือนเดิม
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hive-iceberg-rest
+spec:
+  selector:
+    app.kubernetes.io/name: hive              # ตรวจ label จริงของ pod metastore ก่อน: kubectl get pods --show-labels
+    app.kubernetes.io/instance: hive
+  ports:
+    - { name: iceberg-rest, port: 9001, targetPort: 9001 }
+```
+
+Spark / PyIceberg ชี้ไปที่ `http://hive-iceberg-rest.<namespace>.svc:9001/iceberg` (ดูหัวข้อ 5)
+
+**ต้องทดสอบใน PoC ก่อนเลือกทางนี้**
+
+1. image Hive 4.2.0 ของ Stackable มีส่วน REST catalog (module `metastore-rest-catalog`) หรือไม่ — เอกสาร Stackable ไม่ได้พูดถึง
+2. `configOverrides` ของ `hive-site.xml` ถูกนำไปใช้ และ HMS log แสดงว่าเปิด servlet ที่ port 9001
+3. `curl http://hive-iceberg-rest.<namespace>.svc:9001/iceberg/v1/config` ได้ JSON กลับมา
+4. Trino (Thrift) สร้างตาราง → Spark / PyIceberg (REST) อ่านตารางเดียวกันได้ และกลับกัน
+5. RAM ของ HMS หลังเปิด REST ยังอยู่ในงบของ PoC
 
 ---
 
@@ -204,12 +262,15 @@ spark.sql.catalog.lakehouse.client.region=us-east-1
 # S3 key: ใส่ผ่าน environment AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY จาก Secret ของ ESO
 ```
 
-**แบบ REST catalog (ทางเลือก C)** — เปลี่ยนเฉพาะ 3 บรรทัด
+**แบบ REST catalog** — เปลี่ยนเฉพาะ `type` และ `uri`
 
 ```properties
 spark.sql.catalog.lakehouse.type=rest
-spark.sql.catalog.lakehouse.uri=http://lakekeeper.lakekeeper.svc:8181/catalog
-spark.sql.catalog.lakehouse.warehouse=warehouse
+# ทางเลือก E (REST API ของ Hive Metastore):
+spark.sql.catalog.lakehouse.uri=http://hive-iceberg-rest.<namespace>.svc:9001/iceberg
+# ทางเลือก C (Lakekeeper):
+# spark.sql.catalog.lakehouse.uri=http://lakekeeper.lakekeeper.svc:8181/catalog
+# spark.sql.catalog.lakehouse.warehouse=warehouse
 ```
 
 ---
@@ -228,11 +289,11 @@ spark.sql.catalog.lakehouse.warehouse=warehouse
 
 ## 7. คำแนะนำและสิ่งที่ต้องตัดสินใจ
 
-1. **ตอบก่อนติดตั้ง Hive:** PoC จะใช้ Spark หรือ PyIceberg กับตาราง Iceberg หรือไม่
-   - ไม่ใช้ → **D**: Hive 4.2.0 + TrinoCatalog แบบ `iceberg`
-   - ใช้ → **A**: Hive 4.0.0 (ตั้งค่าเหมือนเดิมทุกอย่าง ยกเว้น `productVersion`)
-2. **หลัง Trino + Hive ใช้งานได้แล้ว** (ถ้ามีเวลา / resource): ทดลอง **C** กับ Lakekeeper ใน namespace แยก — วัด RAM, ทดสอบ Trino `generic` + Spark + PyIceberg กับตารางชุดเดียวกัน
-3. **Production:** ถ้าผลทดลอง C ผ่าน ให้ใช้ REST catalog ตั้งแต่ต้น (ไม่ต้องพึ่ง Hive version ที่ deprecated และ register ตารางเดิมเข้า catalog ใหม่ได้โดยไม่ต้องย้ายข้อมูล)
+1. **ติดตั้ง Hive Metastore 4.2.0** (ตามแผนเดิม) + TrinoCatalog แบบ `iceberg` — ใช้ได้ทันทีสำหรับ Trino
+2. **ถ้า PoC ใช้ Spark / PyIceberg:** ทดสอบ **E** (เปิด REST API ของ HMS) ตามรายการทดสอบในหัวข้อ E
+   - ผ่าน → ใช้ E (Hive LTS ตัวเดียว ไม่ต้องมี service เพิ่ม)
+   - ไม่ผ่าน (เช่น image ของ Stackable ไม่มีส่วน REST) → เปลี่ยน `productVersion` เป็น **4.0.0 (A)** หรือทดลอง **C** (Lakekeeper)
+3. **Production:** เลือก E หรือ C ตามผล PoC — ทั้งคู่ใช้ REST ซึ่งเป็นมาตรฐานของ Iceberg และไม่ต้องพึ่ง Hive version ที่ deprecated
 
 ---
 
@@ -243,5 +304,7 @@ spark.sql.catalog.lakehouse.warehouse=warehouse
 - PyIceberg [#1222](https://github.com/apache/iceberg-python/issues/1222) — Hive metastore 4.0.1 removed deprecated Thrift APIs
 - Stackable demo [data-lakehouse-iceberg-trino-spark](https://docs.stackable.tech/home/stable/demos/data-lakehouse-iceberg-trino-spark/) และ [hive-metastores.yaml](https://github.com/stackabletech/demos/blob/main/stacks/data-lakehouse-iceberg-trino-spark/hive-metastores.yaml)
 - Stackable [Hive operator — supported versions](https://docs.stackable.tech/home/stable/hive/)
+- Hive: [Iceberg REST Catalog API backed by Hive Metastore](https://hive.apache.org/docs/latest/admin/iceberg-rest-catalog/), [Hive 4.2.0 REST Catalog quickstart](https://hive.apache.org/docs/latest/quickstart-rest-catalog/), [HIVE-28059](https://issues.apache.org/jira/browse/HIVE-28059)
+- Stackable [discussion #41 — Trino กับ Iceberg REST catalog](https://github.com/orgs/stackabletech/discussions/41)
 - Stackable Trino catalogs: [Iceberg](https://docs.stackable.tech/home/stable/trino/usage-guide/catalogs/iceberg/), [Generic](https://docs.stackable.tech/home/stable/trino/usage-guide/catalogs/generic/), [configOverrides](https://docs.stackable.tech/home/stable/trino/usage-guide/catalogs/)
 - [Iceberg Spark configuration](https://iceberg.apache.org/docs/latest/spark-configuration/)
