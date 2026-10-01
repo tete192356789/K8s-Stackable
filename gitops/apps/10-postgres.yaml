@@ -6,6 +6,8 @@ metadata:
   name: postgres
   namespace: argocd
   annotations:
+    # เทียบ diff ฝั่ง server รวมค่าเริ่มต้นที่ webhook (CNPG / Stackable / ESO) เติมให้ → ไม่ขึ้น OutOfSync ทั้งที่ไม่มีใครแก้
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
     argocd.argoproj.io/sync-wave: "10"
 spec:
   project: default
