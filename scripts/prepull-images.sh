@@ -32,6 +32,7 @@ normalize() {
 
 mapfile -t IMAGES < <(grep -vE '^\s*(#|$)' "$LIST" | while read -r i; do normalize "$i"; done | sort -u)
 echo "จำนวน image: ${#IMAGES[@]}"
+(( ${#IMAGES[@]} )) || { echo "ไม่มี image ใน $LIST — หยุด"; exit 1; }
 
 failed=()
 for img in "${IMAGES[@]}"; do
