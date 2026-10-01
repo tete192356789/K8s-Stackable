@@ -60,10 +60,10 @@ helm template argocd argo/argo-cd -n argocd --version 10.9.4 -f values.yaml > /t
 grep -E '^kind: (Deployment|StatefulSet)' /tmp/argocd-rendered.yaml | sort | uniq -c     # ไม่ควรมี dex / notifications
 grep -oE 'image: *"?[^" ]+' /tmp/argocd-rendered.yaml | awk '{print $2}' | tr -d '"' | sort -u > /tmp/argocd-images.txt
 cat /tmp/argocd-images.txt                                                                # argocd v3.5.3 + redis
-/root/K8S-Stackable/scripts/prepull-images.sh /tmp/argocd-images.txt 2>&1 | tee /tmp/argocd-prepull.log
+/root/K8s-Stackable-repo/scripts/prepull-images.sh /tmp/argocd-images.txt 2>&1 | tee /tmp/argocd-prepull.log
 ```
 
-> ใช้ `scripts/prepull-images.sh` ตัวล่าสุดจาก repo ก็ได้: `/root/K8s-Stackable-repo/scripts/prepull-images.sh`
+> ตั้งแต่ขั้นนี้ใช้ `prepull-images.sh` จาก repo (`/root/K8s-Stackable-repo/scripts/`) ซึ่งเป็นตัวล่าสุด — ตัวใน `/root/K8S-Stackable/scripts/` เป็นตัวเก่าที่ copy ไว้ด้วย `scp`
 
 ---
 
