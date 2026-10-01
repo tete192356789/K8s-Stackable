@@ -1,6 +1,6 @@
 # Iceberg catalog: ปัญหา Hive Metastore 4 กับ Spark / PyIceberg และทางเลือก
 
-> สถานะ: **รอตัดสินใจ / รอทดสอบ** — ติดตั้ง Hive 4.2.0 ได้ตามแผน; ถ้า PoC ใช้ Spark หรือ PyIceberg ต้องทดสอบทางเลือก E (REST API ในตัว HMS) ก่อน
+> สถานะ: **เลือกทางเลือก E** (2026-10-01) — ทดสอบบน PoC แล้ว: image Hive 4.2.0 ของ Stackable 26.7 เปิด Iceberg REST Catalog ได้ (`Started Iceberg REST Catalog ... on 9001`), `GET /v1/config` และ `GET /v1/namespaces` ใช้ได้; การสร้าง namespace ต้องตั้ง `hive.metastore.warehouse.external.dir` เพิ่ม
 > ข้อมูล ณ 2026-09-30: Stackable SDP 26.7.0, Trino 481, Iceberg 1.10.1 / 1.11.0
 
 ## สรุป
@@ -216,6 +216,8 @@ spec:
   metastore:
     configOverrides:
       hive-site.xml:
+        hive.metastore.warehouse.dir: s3a://warehouse/
+        hive.metastore.warehouse.external.dir: s3a://warehouse/external/   # ต้องมี — ไม่งั้น REST createNamespace ได้ NPE
         metastore.catalog.servlet.port: "9001"
         metastore.catalog.servlet.auth: "none"          # PoC ภายใน cluster เท่านั้น — production ใช้ oauth2 กับ Keycloak
   # ... ส่วนอื่นเหมือนเดิม

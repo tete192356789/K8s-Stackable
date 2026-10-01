@@ -45,7 +45,8 @@ spec:
         memory: { limit: 1536Mi }
     configOverrides:
       hive-site.xml:
-        hive.metastore.warehouse.dir: s3a://warehouse/
+        hive.metastore.warehouse.dir: s3a://warehouse/                    # managed table
+        hive.metastore.warehouse.external.dir: s3a://warehouse/external/  # external table — Iceberg (REST createNamespace ต้องใช้ ไม่งั้น NPE)
         metastore.catalog.servlet.port: "9001"       # เปิด Iceberg REST Catalog API
         metastore.catalog.servlet.auth: none          # PoC ภายใน cluster เท่านั้น — ห้ามเปิดออกนอก cluster; production ใช้ oauth2 (Keycloak)
     roleGroups:

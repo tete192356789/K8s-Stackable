@@ -178,7 +178,7 @@ kubectl -n data-platform run rest-test --rm -i --image=busybox:1.36 --restart=Ne
 kubectl -n database exec pg-platform-1 -- psql -U postgres -d hive -c 'select "NAME", "DB_LOCATION_URI" from "DBS";'
 ```
 
-ต้องเห็น `poc_rest` พร้อม location `s3a://warehouse/poc_rest.db` — Trino (Thrift) จะเห็น schema นี้ด้วยเมื่อติดตั้งแล้ว
+ต้องเห็น `poc_rest` พร้อม location `s3a://warehouse/external/poc_rest.db` — Trino (Thrift) จะเห็น schema นี้ด้วยเมื่อติดตั้งแล้ว
 
 > ⚠️ Service `hive-iceberg-rest` ตั้ง auth เป็น `none` — **ห้ามเปิดผ่าน Ingress / LoadBalancer** ใช้ภายใน cluster เท่านั้น (production ใช้ `oauth2` กับ Keycloak)
 
@@ -213,6 +213,7 @@ kubectl -n database exec pg-platform-1 -- psql -U postgres -d hive -c 'select "N
 | Hive pod CrashLoop, log `password authentication failed` | password ใน `hive-db-credentials` ไม่ตรงกับ role | ExternalSecret ทั้ง 2 ตัวอ่าน `secret/postgres/hive` เดียวกัน — ตรวจ `kubectl -n database get secret pg-role-hive` และสถานะ role ใน `kubectl -n database get cluster pg-platform -o yaml \| grep -A5 managedRolesStatus` |
 | Hive pod ค้าง `ContainerCreating` นาน | ยังไม่มี image Hive บน node | ขั้นที่ 1 |
 | `wget: can't connect` ที่ port 9001 | REST servlet ไม่เปิด (config ไม่ถูกใช้ / image ไม่มีส่วน REST) หรือ selector ของ Service ไม่ตรง | ขั้น 5.1–5.2 — ถ้า image ไม่มีส่วน REST จริง ให้กลับไปดูทางเลือก A / C ใน design doc |
+| REST `POST /namespaces` ได้ HTTP 500, log `Warehouse location is not set: hive.metastore.warehouse.external.dir=null` | ตาราง Iceberg เป็น external table — Iceberg `HiveCatalog` (ที่ REST servlet ใช้) ต้องมี external warehouse | ตั้ง `hive.metastore.warehouse.external.dir` ใน `configOverrides` (มีแล้วใน `gitops/hive/hive.yaml`) |
 | S3 error ใน log ของ Hive (`403` / `SignatureDoesNotMatch`) | key ผิดหรือไม่ได้ใช้ path-style | `kubectl -n data-platform get secret s3-credentials --show-labels` ต้องมี label `secrets.stackable.tech/class=s3-credentials` |
 
 ดู log
