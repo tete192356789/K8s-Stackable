@@ -1,0 +1,27 @@
+# wave 40: Trino 481 (namespace data-platform) — ใช้ Hive Metastore (Thrift) + S3Connection seaweedfs จาก wave 30
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trino
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/trino
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # ไม่ใช้ ServerSideApply: TrinoCluster ตั้ง tls.serverSecretClass: null เพื่อปิด TLS
+    # และ server-side apply จะตีความ null เป็น "ลบ field" → operator กลับไปใช้ค่าเริ่มต้น (TLS เปิด)
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
