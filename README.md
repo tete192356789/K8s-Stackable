@@ -29,8 +29,8 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 5 | CloudNativePG operator | 1.30.1 | [05-cnpg-operator.md](docs/install/05-cnpg-operator.md) | ✅ |
 | 6 | SeaweedFS | 4.47 | [06-seaweedfs.md](docs/install/06-seaweedfs.md) | ✅ |
 | 7 | OpenBao + External Secrets | 2.7.0 / 2.11.0 | [07-openbao-eso.md](docs/install/07-openbao-eso.md) | ✅ |
-| 8 | Argo CD (last Helm-installed component) | 3.5.3 | [08-argocd.md](docs/install/08-argocd.md) | 🔄 |
-| 9 | GitOps: CNPG cluster (PostgreSQL 17), Stackable operators, Hive Metastore 4.2.0 + Iceberg REST | 17.11 / 26.7.0 | [09-gitops-hive.md](docs/install/09-gitops-hive.md) | |
+| 8 | Argo CD (last Helm-installed component) | 3.5.3 | [08-argocd.md](docs/install/08-argocd.md) | ✅ |
+| 9 | GitOps: CNPG cluster (PostgreSQL 17), Stackable operators, Hive Metastore 4.2.0 + Iceberg REST | 17.11 / 26.7.0 | [09-gitops-hive.md](docs/install/09-gitops-hive.md) | ✅ |
 | 10 | Trino (+ Iceberg) | 481 | — | |
 | 11 | Keycloak | 26.7 | — | |
 | 12 | Prometheus + Alertmanager + Grafana, Loki, Vector | — | — | |
