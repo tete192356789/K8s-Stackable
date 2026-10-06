@@ -1,0 +1,27 @@
+# wave 25: S3 ผ่าน TLS (Traefik หน้า SeaweedFS) — ต้องมีก่อน Hive (30) และ Trino (40) ที่ใช้ S3Connection แบบ TLS
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: s3-tls
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "25"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/s3-tls
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: seaweedfs
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

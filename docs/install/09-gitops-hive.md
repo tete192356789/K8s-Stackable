@@ -221,6 +221,6 @@ kubectl -n database exec pg-platform-1 -- psql -U postgres -d hive -c 'select "N
 ```bash
 kubectl -n argocd get applications
 kubectl -n argocd describe application hive | sed -n '/Status:/,$p' | head -40
-kubectl -n stackable-operators logs deploy/hive-operator-deployment --tail=50
+kubectl -n stackable-operators logs deploy/stackable-hive-operator-deployment --tail=50
 kubectl -n data-platform logs hive-metastore-default-0 -c hive --tail=100
 ```

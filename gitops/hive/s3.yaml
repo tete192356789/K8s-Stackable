@@ -36,14 +36,20 @@ spec:
     - secretKey: secretKey
       remoteRef: { key: seaweedfs/s3-admin, property: secret_key }
 ---
+# ใช้ S3 ผ่าน TLS (gitops/s3-tls) — trino-operator บังคับ TLS สำหรับ S3 ตั้งแต่ Trino 469
 apiVersion: s3.stackable.tech/v1alpha1
 kind: S3Connection
 metadata:
   name: seaweedfs
   namespace: data-platform
 spec:
-  host: seaweedfs-s3.seaweedfs.svc.cluster.local
-  port: 8333
+  host: s3-tls.seaweedfs.svc.cluster.local
+  port: 443
   accessStyle: Path
   credentials:
     secretClass: s3-credentials
+  tls:
+    verification:
+      server:
+        caCert:
+          secretClass: seaweedfs-s3-ca

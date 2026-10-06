@@ -1,0 +1,75 @@
+# S3 ผ่าน TLS สำหรับ product ของ Stackable ภายใน cluster
+# Stackable trino-operator บังคับ: "trino 469 and greater require TLS for S3"
+# SeaweedFS chart เปิด HTTPS ให้ S3 ได้เฉพาะเมื่อเปิด enableSecurity (mTLS ทั้งระบบ) → ใช้ Traefik ทำ TLS อยู่หน้า S3 แทน
+#
+#   Trino / Hive ──HTTPS :443──▶ s3-tls.seaweedfs.svc.cluster.local (ExternalName → Service traefik)
+#                                   └─ Traefik (cert seaweedfs-s3-tls จาก platform-ca) ──HTTP :8333──▶ seaweedfs-s3
+#   ฝั่ง client ตรวจ cert ด้วย ca.crt ผ่าน SecretClass seaweedfs-s3-ca (secret-operator, k8sSearch ใน ns seaweedfs)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: seaweedfs-s3-tls
+  namespace: seaweedfs
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  secretName: seaweedfs-s3-tls
+  secretTemplate:
+    labels:
+      secrets.stackable.tech/class: seaweedfs-s3-ca   # ให้ SecretClass ด้านล่างหา secret นี้เจอ (ใช้ key ca.crt)
+  duration: 2160h
+  renewBefore: 360h
+  dnsNames:
+    - s3-tls.seaweedfs.svc.cluster.local
+    - s3-tls.seaweedfs.svc
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: platform-ca
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: seaweedfs-s3-ca
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        name: seaweedfs
+---
+# ชื่อ DNS ภายใน cluster ที่ชี้ไปหา Traefik (TLS SNI = ชื่อนี้ ตรงกับ cert ด้านบน)
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3-tls
+  namespace: seaweedfs
+spec:
+  type: ExternalName
+  externalName: traefik.traefik.svc.cluster.local
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seaweedfs-s3-tls
+  namespace: seaweedfs
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  tls:
+    - hosts: [s3-tls.seaweedfs.svc.cluster.local]
+      secretName: seaweedfs-s3-tls
+  rules:
+    - host: s3-tls.seaweedfs.svc.cluster.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seaweedfs-s3
+                port: { number: 8333 }
