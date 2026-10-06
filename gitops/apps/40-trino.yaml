@@ -20,8 +20,8 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    # ไม่ใช้ ServerSideApply: TrinoCluster ตั้ง tls.serverSecretClass: null เพื่อปิด TLS
-    # และ server-side apply จะตีความ null เป็น "ลบ field" → operator กลับไปใช้ค่าเริ่มต้น (TLS เปิด)
+    syncOptions:
+      - ServerSideApply=true
     retry:
       limit: 10
       backoff: { duration: 30s, factor: 2, maxDuration: 5m }

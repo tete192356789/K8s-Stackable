@@ -6,21 +6,21 @@ Query engine ของ platform — อ่าน/เขียนตาราง 
 |---|---|
 | Trino | 481 (Stackable 26.7.0, image `oci.stackable.tech/sdp/trino:481-stackable26.7.0`) |
 | Node | coordinator 1 (3 GB) + worker 1 (5 GB) |
-| Client | **HTTP :8080 ไม่มี authentication** (PoC ช่วงแรก) — เข้าถึงได้แค่ภายใน cluster / port-forward |
+| Client | **HTTPS :8443 ไม่มี authentication** (PoC ช่วงแรก) — เข้าถึงได้แค่ภายใน cluster / port-forward; cert ออกโดย CA ของ secret-operator (SecretClass `tls`) |
 | Catalog | `iceberg` (Hive Metastore + SeaweedFS), `tpch` (ข้อมูลตัวอย่าง) |
 | Namespace | `data-platform` (เดียวกับ Hive — ใช้ S3Connection `seaweedfs` และ ConfigMap `hive` ร่วมกัน) |
 | ไฟล์ใน repo | `gitops/apps/20-stackable-operators.yaml` (เพิ่ม `trino-operator`), `gitops/apps/40-trino.yaml`, `gitops/trino/trino.yaml` |
 | ต้องติดตั้งก่อน | [09-gitops-hive.md](09-gitops-hive.md) |
 
 ```
-Python / DBeaver / Superset ──HTTP :8080──▶ trino-coordinator ──▶ trino-worker
+Python / DBeaver / Superset ──HTTPS :8443──▶ trino-coordinator ──▶ trino-worker
                                                  │ Thrift :9083            │ S3 (path-style)
                                                  ▼                         ▼
                                            Hive Metastore            SeaweedFS (warehouse/)
 ```
 
-> ⚠️ **ไม่มี authentication** — ใครเข้าถึง port 8080 ได้ query / ลบข้อมูลได้ทุกตาราง
-> ห้ามเปิดผ่าน Ingress / LoadBalancer จนกว่าจะเปิด TLS + Keycloak (OIDC) ซึ่งต้องเปิด `serverSecretClass` กลับมาด้วย (Trino บังคับ TLS เมื่อมี authentication)
+> ⚠️ **ไม่มี authentication** — ใครเข้าถึง port 8443 ได้ query / ลบข้อมูลได้ทุกตาราง
+> ห้ามเปิดผ่าน Ingress / LoadBalancer จนกว่าจะเพิ่ม Keycloak (OIDC) — TLS เปิดอยู่แล้ว (Trino บังคับ TLS เมื่อมี authentication)
 
 ---
 
@@ -28,8 +28,7 @@ Python / DBeaver / Superset ──HTTP :8080──▶ trino-coordinator ──�
 
 | ค่า | ตั้งเป็น | เหตุผล |
 |---|---|---|
-| `clusterConfig.tls.serverSecretClass` | `null` | ปิด HTTPS ฝั่ง client (ค่าเริ่มต้นของ operator คือ `tls` → HTTPS :8443) ให้ PoC ต่อด้วย HTTP ง่าย ๆ — การสื่อสารภายในยังใช้ TLS |
-| Application `trino` | **ไม่ใช้** `ServerSideApply` | server-side apply ตีความ `null` เป็น "ลบ field" → operator กลับไปใช้ TLS |
+| `clusterConfig.tls` | ไม่ตั้ง (ใช้ค่าเริ่มต้น `tls`) | HTTPS :8443 ทั้งฝั่ง client และภายใน — ไม่ปิด TLS เพราะ authentication ภายหลังบังคับต้องมี TLS และการตั้ง `serverSecretClass: null` ไม่รอดผ่าน Argo CD (ค่า null หายระหว่าง apply แล้ว API server เติม `tls` ให้ → Application OutOfSync ตลอด) |
 | `coordinators.config.resources` | CPU 250m–1, memory 3Gi | ค่าเริ่มต้นของ operator คือ 4Gi — ลดตามงบ RAM ของ PoC |
 | `workers.config.resources` | CPU 0.5–2, memory 5Gi | worker ทำงานหนักกว่า coordinator |
 | TrinoCatalog `iceberg` | `metastore.configMap: hive`, `s3.reference: seaweedfs` | operator สร้าง config ของ Iceberg connector ให้เอง (endpoint, path-style, credential) |
@@ -81,22 +80,20 @@ kubectl -n data-platform get trinocluster,trinocatalog
 kubectl -n data-platform get pods -o wide            # trino-coordinator-default-0 และ trino-worker-default-0 เป็น 1/1
 kubectl -n data-platform get svc | grep trino
 
-# TLS ฝั่ง client ต้องปิดอยู่ — ต้องเห็น null และ Service มี port 8080 (ไม่ใช่ 8443)
+# TLS ค่าเริ่มต้น — ต้องเห็น serverSecretClass=tls และ Service มี port 8443
 kubectl -n data-platform get trinocluster trino -o jsonpath='{.spec.clusterConfig.tls}'; echo
 kubectl -n data-platform logs trino-coordinator-default-0 -c trino --tail=200 | grep -iE 'SERVER STARTED|error' | tail -5
 ```
-
-> ถ้า `tls` ไม่มี `serverSecretClass: null` (หรือ Service มีแค่ 8443) แปลว่า `null` ถูกตัดทิ้งระหว่าง apply — ดู [ปัญหาที่พบบ่อย](#ปัญหาที่พบบ่อย)
 
 ---
 
 ## ขั้นที่ 4: ทดสอบด้วย Python จาก Mac
 
-**4.1 เปิด tunnel** (Mac — เปิด terminal ค้างไว้) ใช้ port 18080 บน Mac กันชนกับ tunnel อื่น
+**4.1 เปิด tunnel** (Mac — เปิด terminal ค้างไว้) ใช้ port 18443 บน Mac กันชนกับ tunnel อื่น
 
 ```bash
-ssh -L 18080:localhost:18080 k8s-master \
-  'kubectl -n data-platform port-forward svc/trino-coordinator 18080:8080'
+ssh -L 18443:localhost:18443 k8s-master \
+  'kubectl -n data-platform port-forward svc/trino-coordinator 18443:8443'
 ```
 
 ชื่อ Service ตรวจได้จากขั้นที่ 3 (`kubectl -n data-platform get svc | grep trino`)
@@ -107,7 +104,9 @@ ssh -L 18080:localhost:18080 k8s-master \
 pip install trino
 python - <<'EOF'
 from trino.dbapi import connect
-cur = connect(host="localhost", port=18080, user="admin", catalog="iceberg", schema="default").cursor()
+# verify=False: cert ของ Trino ออกโดย CA ของ secret-operator (ไม่ใช่ internal CA ของ cert-manager) และชื่อใน cert ไม่ใช่ localhost
+cur = connect(host="localhost", port=18443, user="admin", catalog="iceberg", schema="default",
+              http_scheme="https", verify=False).cursor()
 
 def q(sql):
     cur.execute(sql)
@@ -141,7 +140,7 @@ aws --endpoint-url https://s3.172.19.10.62.sslip.io s3 ls --recursive s3://wareh
 
 ต้องเห็นไฟล์ `data/*.parquet` และ `metadata/*.metadata.json`
 
-**Trino Web UI:** เปิด `http://localhost:18080/ui/` ระหว่างที่ tunnel เปิดอยู่ (ใส่ username อะไรก็ได้ — ยังไม่มี authentication)
+**Trino Web UI:** เปิด `https://localhost:18443/ui/` ระหว่างที่ tunnel เปิดอยู่ (browser จะเตือนเรื่อง cert — กดยอมรับได้; ใส่ username อะไรก็ได้ — ยังไม่มี authentication)
 
 ---
 
@@ -149,7 +148,8 @@ aws --endpoint-url https://s3.172.19.10.62.sslip.io s3 ls --recursive s3://wareh
 
 | อาการ | สาเหตุ | วิธีแก้ |
 |---|---|---|
-| Service มีแค่ port 8443 / client ต่อ HTTP ไม่ได้ | `serverSecretClass: null` ถูกตัดทิ้ง (เช่น เปิด ServerSideApply) → operator ใช้ TLS ค่าเริ่มต้น | ตรวจว่า Application `trino` ไม่มี `ServerSideApply=true` แล้ว `kubectl -n data-platform delete trinocluster trino` ให้ Argo CD สร้างใหม่ — หรือใช้ HTTPS: Python `connect(..., port=8443, http_scheme="https", verify=False)` |
+| Python error `SSL: CERTIFICATE_VERIFY_FAILED` | cert ของ Trino ออกโดย CA ของ secret-operator | ใช้ `verify=False` (PoC) หรือ export CA: `kubectl -n stackable-operators get secret secret-provisioner-tls-ca -o jsonpath='{.data.ca\.crt}' \| base64 -d` แล้วใช้ `verify="ca.crt"` (ชื่อ host ใน cert ต้องตรงด้วย) |
+| Application `trino` OutOfSync ที่ `TrinoCluster/trino` | ค่าใน Git ไม่ตรงกับที่ API server / webhook เติมให้ | ดู APP DIFF ใน UI — อย่าตั้ง `serverSecretClass: null` (ค่า null ไม่รอดผ่าน Argo CD) |
 | pod `Pending` / `Insufficient memory` | node ไม่มี RAM ว่างพอ (worker ขอ 5Gi) | `kubectl -n data-platform describe pod trino-worker-default-0`; ลด `memory.limit` ของ worker เป็น 4Gi แล้ว push |
 | query error `Access Denied` / `Failed checking path` ตอน CREATE TABLE | S3 key / path-style ผิด | `kubectl -n data-platform get secret s3-credentials --show-labels` และ log ของ worker |
 | `SHOW SCHEMAS` ไม่เห็น `poc_rest` / error ต่อ metastore | Trino ต่อ Hive Metastore ไม่ได้ | `kubectl -n data-platform get cm hive -o yaml` (ต้องมี `HIVE` = `thrift://...:9083`) |

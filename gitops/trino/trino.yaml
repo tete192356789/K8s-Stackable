@@ -1,6 +1,7 @@
 # Trino 481 (Stackable 26.7.0) — PoC
 #   coordinator 1 + worker 1, ไม่มี authentication (PoC ช่วงแรก — เข้าถึงได้แค่ภายใน cluster / port-forward)
-#   client ใช้ HTTP :8080 (ปิด server TLS) — การสื่อสารภายในระหว่าง coordinator กับ worker ยังใช้ TLS (SecretClass tls)
+#   client ใช้ HTTPS :8443 (TLS ค่าเริ่มต้นของ operator, cert จาก SecretClass tls ของ secret-operator)
+#   ไม่ปิด TLS เพราะ (1) authentication (Keycloak) ภายหลังบังคับต้องมี TLS (2) serverSecretClass: null ไม่รอดผ่าน Argo CD
 #   catalog: iceberg (Hive Metastore ผ่าน Thrift + SeaweedFS), tpch (ข้อมูลตัวอย่างสำหรับทดสอบ)
 apiVersion: trino.stackable.tech/v1alpha1
 kind: TrinoCluster
@@ -14,8 +15,6 @@ spec:
     catalogLabelSelector:
       matchLabels:
         trino: trino
-    tls:
-      serverSecretClass: null           # ปิด HTTPS ฝั่ง client — ต้องเปิดกลับตอนเพิ่ม authentication (Keycloak)
   coordinators:
     config:
       resources:
