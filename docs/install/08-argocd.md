@@ -109,12 +109,59 @@ kubectl -n argocd get secret -l argocd.argoproj.io/secret-type=repository \
 
 ---
 
+## ขั้นที่ 6: SSO ผ่าน Keycloak (หลังติดตั้ง Keycloak — [11-keycloak.md](11-keycloak.md))
+
+| ส่วน | ค่า |
+|---|---|
+| Issuer | `https://keycloak.172.19.10.62.sslip.io/realms/platform`, client `argocd` |
+| Client secret | OpenBao `secret/keycloak/clients` (property `argocd`) → ExternalSecret → Secret `argocd-oidc` (label `app.kubernetes.io/part-of=argocd`) อ้างถึงใน `oidc.config` ด้วย `$argocd-oidc:clientSecret` |
+| เชื่อ internal CA | Certificate `argocd-ca-trust` (cert-manager) → mount `ca.crt` ไปที่ `/etc/ssl/certs/platform-ca.crt` ของ argocd-server (Go อ่านทุกไฟล์ใน `/etc/ssl/certs/`) — ไม่ต้องใส่ CA ใน Git |
+| สิทธิ์ | group `platform-admins` → `role:admin`, คนอื่นที่ login ได้ → `role:readonly` |
+| Break-glass | user `admin` ยังใช้ได้ (ตอน Keycloak ล่ม) |
+| ไฟล์ | `platform/argocd/values.yaml` (`oidc.config`, `rbac`, `server.volumes`), `platform/argocd/oidc.yaml` |
+
+**6.1 สร้าง Secret และ Certificate** (master)
+
+```bash
+cd /root/K8s-Stackable-repo && git pull
+kubectl apply -f platform/argocd/oidc.yaml
+kubectl -n argocd get externalsecret argocd-oidc              # SecretSynced
+kubectl -n argocd get certificate argocd-ca-trust             # READY True
+kubectl -n argocd get secret argocd-oidc --show-labels        # มี label app.kubernetes.io/part-of=argocd
+```
+
+**6.2 Helm upgrade** (master) — argocd-server จะ restart
+
+```bash
+cd /root/K8s-Stackable-repo/platform/argocd
+helm upgrade argocd argo/argo-cd -n argocd --version 10.9.4 -f values.yaml
+kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+kubectl -n argocd exec deploy/argocd-server -- head -1 /etc/ssl/certs/platform-ca.crt      # -----BEGIN CERTIFICATE-----
+kubectl -n argocd get cm argocd-cm -o jsonpath='{.data.oidc\.config}'; echo
+kubectl -n argocd logs deploy/argocd-server --tail=100 | grep -iE 'oidc|x509|keycloak' | tail -5
+```
+
+**6.3 ทดสอบ** — เปิด `https://argocd.172.19.10.62.sslip.io` → ปุ่ม **LOG IN VIA KEYCLOAK**
+
+| User (realm platform) | ผลที่ถูกต้อง |
+|---|---|
+| `poc-admin` (group `platform-admins`) | เห็นทุก Application และกด Sync / Delete ได้ |
+| `poc-analyst` (group `analysts`) | เห็นทุก Application แต่กด Sync ไม่ได้ (permission denied) |
+
+ดูว่า Argo CD เห็น group อะไร: มุมซ้ายล่าง **User Info** → Groups ต้องมี `platform-admins`
+
+---
+
 ## ปัญหาที่พบบ่อย
 
 | อาการ | สาเหตุ | วิธีแก้ |
 |---|---|---|
 | UI ขึ้น redirect loop / `ERR_TOO_MANY_REDIRECTS` | `server.insecure` ไม่ถูกใช้ (argocd-server พยายาม redirect ไป HTTPS) | `kubectl -n argocd get cm argocd-cmd-params-cm -o yaml \| grep insecure` ต้องเป็น `"true"` แล้ว `kubectl -n argocd rollout restart deploy argocd-server` |
 | Repository ของ Stackable `Failed` | oci.stackable.tech ตอบช้า / timeout | กด Connection → Refresh ใน UI หรือรอ Argo CD retry |
+| Login ผ่าน Keycloak แล้วขึ้น `x509: certificate signed by unknown authority` | argocd-server ไม่เชื่อ internal CA | ตรวจ 6.2 ว่าไฟล์ `/etc/ssl/certs/platform-ca.crt` มีใน pod และ secret `argocd-ca-trust` มี `ca.crt` |
+| Keycloak ขึ้น `Invalid parameter: redirect_uri` | redirect URI ของ client `argocd` ไม่ตรง | ใน Keycloak: client `argocd` → Valid redirect URIs ต้องมี `https://argocd.172.19.10.62.sslip.io/*` |
+| Login ได้แต่ทุกคนเป็น readonly (รวม `poc-admin`) | ไม่มี claim `groups` หรือ user ไม่อยู่ใน group | User Info ใน Argo CD ดู Groups; ใน Keycloak ตรวจ mapper `groups` ของ client `argocd` และ group ของ user |
+| Login แล้ว `failed to get token: oauth2: "unauthorized_client"` | client secret ไม่ตรงกับใน Keycloak | ค่าใน OpenBao `secret/keycloak/clients` (argocd) ต้องตรงกับ Credentials ของ client `argocd` ใน Keycloak |
 | `helm install` error ว่ามี CRD / ClusterRole ของ Argo อยู่แล้ว | Argo CD / Argo Workflows ตัวเก่าจาก stack เดิมทิ้งไว้ | `kubectl get crd,clusterrole,clusterrolebinding -o name \| grep -i argo` แล้วลบของเก่า |
 
 ดู log

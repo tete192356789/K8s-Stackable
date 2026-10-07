@@ -21,6 +21,19 @@ configs:
         end
       end
       return hs
+    # SSO ผ่าน Keycloak (realm platform, client argocd) — client secret อยู่ใน Secret argocd-oidc (ESO จาก OpenBao)
+    # admin.enabled ยังเปิดไว้ (default) ใช้เป็น break-glass ตอน Keycloak ล่ม
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.172.19.10.62.sslip.io/realms/platform
+      clientID: argocd
+      clientSecret: $argocd-oidc:clientSecret
+      requestedScopes: ["openid", "profile", "email"]
+  rbac:
+    policy.default: role:readonly           # ทุกคนที่ login ผ่าน Keycloak ดูได้อย่างเดียว
+    policy.csv: |
+      g, platform-admins, role:admin
+    scopes: "[groups]"                       # ใช้ claim groups จาก Keycloak
   repositories:
     # Helm chart ของ Stackable อยู่บน OCI registry (ไม่ต้องใช้ credential)
     stackable-oci:
@@ -52,6 +65,19 @@ server:
   resources:
     requests: { cpu: 50m, memory: 64Mi }
     limits: { memory: 256Mi }
+  # ให้ argocd-server เชื่อ internal CA (Keycloak ใช้ cert จาก platform-ca)
+  # Go อ่านทุกไฟล์ใน /etc/ssl/certs/ เป็น trusted CA — ca.crt มาจาก secret ของ Certificate argocd-ca-trust (oidc.yaml)
+  volumes:
+    - name: platform-ca
+      secret:
+        secretName: argocd-ca-trust
+        items:
+          - { key: ca.crt, path: platform-ca.crt }
+  volumeMounts:
+    - name: platform-ca
+      mountPath: /etc/ssl/certs/platform-ca.crt
+      subPath: platform-ca.crt
+      readOnly: true
 
 redis:
   resources:
