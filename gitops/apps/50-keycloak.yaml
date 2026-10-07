@@ -1,0 +1,28 @@
+# wave 50: Keycloak 26.7.4 (namespace keycloak) + realm "platform"
+# ต้องมีก่อน: OpenBao secret/postgres/keycloak และ secret/keycloak/clients (ดู docs/install/11-keycloak.md)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "50"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: false                      # ไม่ลบ Keycloak / realm import ตามไฟล์ที่หายจาก Git
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }

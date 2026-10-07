@@ -31,3 +31,8 @@ spec:
         login: true
         passwordSecret:
           name: pg-role-hive
+      - name: keycloak
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-keycloak

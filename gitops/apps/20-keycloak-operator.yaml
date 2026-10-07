@@ -1,0 +1,22 @@
+# wave 20: Keycloak Operator 26.7.4 — manifest ทางการจาก github.com/keycloak/keycloak-k8s-resources (kustomize)
+# manifest กำหนด namespace "keycloak" ไว้ตายตัว และ operator ดูแลเฉพาะ Keycloak CR ใน namespace เดียวกัน
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/keycloak/keycloak-k8s-resources.git
+    targetRevision: 26.7.4
+    path: kubernetes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

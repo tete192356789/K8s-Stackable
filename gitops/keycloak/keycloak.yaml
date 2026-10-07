@@ -1,0 +1,67 @@
+# Keycloak 26.7.4 (Keycloak Operator) — PoC: 1 instance
+#   database: keycloak บน pg-platform (password จาก OpenBao secret/postgres/keycloak)
+#   HTTP :8080 ภายใน cluster, TLS จบที่ Traefik → https://keycloak.172.19.10.62.sslip.io
+#   admin ชั่วคราว (master realm) อยู่ใน Secret keycloak-initial-admin — สร้าง admin ถาวรแล้วลบทิ้ง (ดู docs/install/11-keycloak.md)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: keycloak-db
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/keycloak, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/keycloak, property: password }
+---
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: pg-platform-rw.database.svc.cluster.local
+    port: 5432
+    database: keycloak
+    usernameSecret: { name: keycloak-db, key: username }
+    passwordSecret: { name: keycloak-db, key: password }
+  http:
+    httpEnabled: true                  # TLS จบที่ Traefik
+  hostname:
+    hostname: https://keycloak.172.19.10.62.sslip.io
+  proxy:
+    headers: xforwarded                # เชื่อ X-Forwarded-* จาก Traefik
+  ingress:
+    enabled: false                     # ใช้ Ingress ของเราเอง (ด้านล่าง)
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits: { memory: 1536Mi }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: keycloak
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: keycloak.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak-service
+                port: { number: 8080 }

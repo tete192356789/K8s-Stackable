@@ -1,0 +1,110 @@
+# Realm "platform" — import ครั้งเดียวตอนสร้าง (KeycloakRealmImport ไม่ update / ไม่เขียนทับ realm ที่มีอยู่แล้ว)
+#   หลัง import: เพิ่ม user / แก้รายละเอียดผ่าน UI ของ Keycloak; แก้ไฟล์นี้จะไม่มีผลกับ realm เดิม
+#   client secret มาจาก OpenBao secret/keycloak/clients ผ่าน placeholder (ห้ามใส่ secret จริงใน Git — repo เป็น public)
+#   ทุก client ส่ง claim "groups" (ชื่อ group แบบไม่มี path) ใน ID token / access token / userinfo
+#   redirect URI ใช้ wildcard ต่อ host เพื่อความง่ายของ PoC — production ควรระบุ path ให้ชัด
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-client-secrets
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: keycloak-client-secrets
+  dataFrom:
+    - extract:
+        key: keycloak/clients          # property: argocd, grafana, trino, superset, airflow, openbao
+---
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: platform
+  namespace: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"  # หลัง Keycloak CR
+spec:
+  keycloakCRName: keycloak
+  placeholders:
+    ARGOCD_SECRET:   { secret: { name: keycloak-client-secrets, key: argocd } }
+    GRAFANA_SECRET:  { secret: { name: keycloak-client-secrets, key: grafana } }
+    TRINO_SECRET:    { secret: { name: keycloak-client-secrets, key: trino } }
+    SUPERSET_SECRET: { secret: { name: keycloak-client-secrets, key: superset } }
+    AIRFLOW_SECRET:  { secret: { name: keycloak-client-secrets, key: airflow } }
+    OPENBAO_SECRET:  { secret: { name: keycloak-client-secrets, key: openbao } }
+  realm:
+    realm: platform
+    displayName: K8s-Stackable PoC
+    enabled: true
+    sslRequired: external
+    groups:
+      - name: platform-admins          # ดูแลระบบ: Argo CD, Grafana admin, OpenBao
+      - name: data-engineers           # สร้าง / แก้ตาราง, Airflow
+      - name: analysts                 # query / dashboard อย่างเดียว
+    clients:
+      - clientId: argocd
+        name: Argo CD
+        secret: ${ARGOCD_SECRET}
+        redirectUris: ["https://argocd.172.19.10.62.sslip.io/*", "http://localhost:8085/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: &groupsMapper
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            config:
+              claim.name: groups
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+      - clientId: grafana
+        name: Grafana
+        secret: ${GRAFANA_SECRET}
+        redirectUris: ["https://grafana.172.19.10.62.sslip.io/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: *groupsMapper
+      - clientId: trino
+        name: Trino
+        secret: ${TRINO_SECRET}
+        redirectUris: ["https://trino.172.19.10.62.sslip.io/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: *groupsMapper
+      - clientId: superset
+        name: Superset
+        secret: ${SUPERSET_SECRET}
+        redirectUris: ["https://superset.172.19.10.62.sslip.io/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: *groupsMapper
+      - clientId: airflow
+        name: Airflow
+        secret: ${AIRFLOW_SECRET}
+        redirectUris: ["https://airflow.172.19.10.62.sslip.io/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: *groupsMapper
+      - clientId: openbao
+        name: OpenBao
+        secret: ${OPENBAO_SECRET}
+        redirectUris: ["https://bao.172.19.10.62.sslip.io/*", "http://localhost:8250/*"]
+        webOrigins: ["+"]
+        publicClient: false
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        protocolMappers: *groupsMapper
