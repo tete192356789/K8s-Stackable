@@ -1,0 +1,67 @@
+# เป้าหมาย scrape ของ platform ที่ kube-prometheus-stack ไม่ได้สร้างให้
+# Prometheus เลือกทุก ServiceMonitor / PodMonitor ใน cluster (serviceMonitorSelectorNilUsesHelmValues: false)
+#
+# 1) Stackable (Hive, Trino ...) — operator สร้าง Service "<cluster>-<role>-<group>-metrics" ที่มี label
+#    prometheus.io/scrape=true + annotation prometheus.io/{scheme,path,port}
+#    ตาม stackabletech/demos stacks/monitoring/prometheus-service-monitors.yaml
+#    ต่างจาก demo: ไม่ใช้ client cert (PoC) — ข้ามการตรวจ cert ถ้า endpoint เป็น https
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: stackable
+  namespace: monitoring
+spec:
+  namespaceSelector: { any: true }
+  selector:
+    matchLabels:
+      stackable.tech/vendor: Stackable
+      prometheus.io/scrape: "true"
+  endpoints:
+    - relabelings:
+        - sourceLabels: [__meta_kubernetes_service_annotation_prometheus_io_scheme]
+          targetLabel: __scheme__
+          regex: (https?)
+        - sourceLabels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          targetLabel: __metrics_path__
+          regex: (.+)
+        - sourceLabels: [__meta_kubernetes_pod_ip, __meta_kubernetes_service_annotation_prometheus_io_port]
+          targetLabel: __address__
+          regex: (.+);(\d+)
+          replacement: $1:$2
+      tlsConfig:
+        insecureSkipVerify: true
+  podTargetLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/instance
+    - app.kubernetes.io/component
+    - app.kubernetes.io/role-group
+---
+# 2) PostgreSQL (CNPG cluster pg-platform) — exporter ในตัว instance port "metrics" (9187)
+#    CNPG 1.30 เลิกสร้าง PodMonitor ให้เอง (monitoring.enablePodMonitor deprecated) จึงสร้างเอง
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pg-platform
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [database] }
+  selector:
+    matchLabels:
+      cnpg.io/cluster: pg-platform
+      cnpg.io/podRole: instance
+  podMetricsEndpoints:
+    - port: metrics
+---
+# 3) Longhorn — longhorn-manager เปิด /metrics ที่ port "manager" (9500)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: longhorn
+  namespace: monitoring
+spec:
+  namespaceSelector: { matchNames: [longhorn-system] }
+  selector:
+    matchLabels:
+      app: longhorn-manager
+  endpoints:
+    - port: manager

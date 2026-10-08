@@ -1,0 +1,29 @@
+# Vector 0.59.0 — Agent (DaemonSet ทุก node) อ่าน log ของทุก pod แล้วส่งเข้า Loki
+role: Agent
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 256Mi }
+
+service: { enabled: false }            # ไม่มี source ที่รับ traffic จากภายนอก
+
+customConfig:
+  data_dir: /vector-data-dir           # hostPath ของ chart — จำตำแหน่งที่อ่าน log ไปแล้ว
+  api: { enabled: false }
+  sources:
+    pod_logs:
+      type: kubernetes_logs
+  sinks:
+    loki:
+      type: loki
+      inputs: [pod_logs]
+      endpoint: http://loki.monitoring.svc:3100
+      encoding: { codec: text }        # ส่งแค่ข้อความ log — metadata อยู่ใน label
+      # {{` ... `}} = ให้ Helm ส่ง {{ ... }} ผ่านไปเป็น template ของ Vector
+      labels:
+        namespace: "{{`{{ kubernetes.pod_namespace }}`}}"
+        pod: "{{`{{ kubernetes.pod_name }}`}}"
+        container: "{{`{{ kubernetes.container_name }}`}}"
+        node: "{{`{{ kubernetes.pod_node_name }}`}}"
+      out_of_order_action: accept
+      healthcheck: { enabled: false }  # ไม่ให้ Vector ค้างตอน start ถ้า Loki ยังไม่พร้อม

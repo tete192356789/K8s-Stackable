@@ -1,0 +1,127 @@
+# kube-prometheus-stack 92.1.1 (Prometheus Operator v0.94.1, Prometheus v3.15.0, Alertmanager v0.34.1) — PoC
+# ขนาดเล็ก: replica เดียว, scrape ทุก 60s, เก็บ 7 วัน
+fullnameOverride: kps
+
+crds:
+  enabled: false            # ลงแยกไว้แล้วในขั้นที่ 4 (prometheus-operator-crds 32.0.1)
+
+# kubeadm: etcd / scheduler / controller-manager / kube-proxy เปิด metrics ที่ 127.0.0.1 เท่านั้น
+# → scrape ไม่ได้และ alert "...Down" ดังตลอด — ปิดไว้สำหรับ PoC
+kubeEtcd: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeProxy: { enabled: false }
+defaultRules:
+  rules:
+    etcd: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeControllerManager: false
+    kubeProxy: false
+windowsMonitoring: { enabled: false }
+
+prometheusOperator:
+  # ปิด admission webhook (ตรวจ PrometheusRule ตอน apply) — ลด pod/job และไม่มี caBundle ให้ Argo CD diff
+  admissionWebhooks: { enabled: false }
+  tls: { enabled: false }   # ต้องปิดคู่กับ webhook (cert มาจาก job ของ webhook)
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 60s
+    evaluationInterval: 60s
+    retention: 7d
+    retentionSize: 12GB
+    # เลือก ServiceMonitor / PodMonitor / PrometheusRule ทุกตัวใน cluster (ไม่ต้องติด label release)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 200m, memory: 1Gi }
+      limits: { memory: 2Gi }
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes: [ReadWriteOnce]
+          resources: { requests: { storage: 15Gi } }
+
+alertmanager:
+  # ยังไม่มีช่องทางแจ้งเตือน (receiver "null") — ดู alert ใน Grafana / Alertmanager UI ผ่าน port-forward
+  alertmanagerSpec:
+    retention: 120h
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 128Mi }
+
+kube-state-metrics:
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+prometheus-node-exporter:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 64Mi }
+
+grafana:
+  admin:
+    existingSecret: grafana-admin          # ExternalSecret ใน gitops/monitoring/secrets.yaml
+    userKey: admin-user
+    passwordKey: admin-password
+  testFramework: { enabled: false }
+  persistence: { enabled: false }          # dashboard / datasource มาจาก provisioning, user มาจาก Keycloak
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  sidecar:
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 128Mi }
+  envValueFrom:
+    GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+      secretKeyRef: { name: grafana-oidc, key: client-secret }
+  # ca.crt ของ platform CA — ให้ Grafana (Go) เชื่อ cert ของ Keycloak ตอนแลก token
+  extraSecretMounts:
+    - name: platform-ca
+      secretName: grafana-ca-trust
+      mountPath: /etc/platform-ca
+      readOnly: true
+  grafana.ini:
+    server:
+      root_url: https://grafana.172.19.10.62.sslip.io
+    auth:
+      oauth_auto_login: false                # หน้า login ยังมีช่อง user/password ของ admin ภายใน
+      signout_redirect_url: https://keycloak.172.19.10.62.sslip.io/realms/platform/protocol/openid-connect/logout?client_id=grafana&post_logout_redirect_uri=https%3A%2F%2Fgrafana.172.19.10.62.sslip.io%2Flogin
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak
+      client_id: grafana
+      scopes: openid profile email
+      auth_url: https://keycloak.172.19.10.62.sslip.io/realms/platform/protocol/openid-connect/auth
+      token_url: https://keycloak.172.19.10.62.sslip.io/realms/platform/protocol/openid-connect/token
+      api_url: https://keycloak.172.19.10.62.sslip.io/realms/platform/protocol/openid-connect/userinfo
+      tls_client_ca: /etc/platform-ca/ca.crt
+      use_pkce: true
+      allow_sign_up: true
+      login_attribute_path: preferred_username
+      email_attribute_path: email
+      name_attribute_path: name
+      groups_attribute_path: groups
+      # group ใน Keycloak → role ใน Grafana
+      role_attribute_path: contains(groups[*], 'platform-admins') && 'Admin' || contains(groups[*], 'data-engineers') && 'Editor' || 'Viewer'
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.monitoring.svc:3100
+      access: proxy
+  ingress:
+    enabled: true
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    hosts: [grafana.172.19.10.62.sslip.io]

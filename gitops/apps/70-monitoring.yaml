@@ -1,0 +1,113 @@
+# wave 70–72: Monitoring — Prometheus + Alertmanager + Grafana (kube-prometheus-stack), Loki, Vector
+# ต้องมีก่อน: OpenBao secret/grafana/admin, secret/keycloak/clients (grafana), secret/seaweedfs/s3-admin
+#            (ดู docs/install/12-monitoring.md)
+#
+#   70 monitoring             gitops/monitoring/*.yaml — ExternalSecret, Certificate, ServiceMonitor/PodMonitor ของ platform
+#   71 kube-prometheus-stack  chart 92.1.1 + values gitops/monitoring/values/kube-prometheus-stack.yaml
+#   71 loki                   chart 18.14.0 (grafana-community) + values gitops/monitoring/values/loki.yaml
+#   72 vector                 chart 0.59.0 + values gitops/monitoring/values/vector.yaml
+#
+# chart จาก Helm repo ภายนอก + values จาก Git ใช้ multi-source ($values = repo นี้)
+# CRD ของ Prometheus Operator ลงไว้แล้วในขั้นที่ 4 (prometheus-operator-crds 32.0.1 = operator v0.94.1 ตรงกับ chart นี้)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "70"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/monitoring          # ไม่ recursive — โฟลเดอร์ values/ จึงไม่ถูก apply
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "71"
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 92.1.1
+      helm:
+        valueFiles: [$values/gitops/monitoring/values/kube-prometheus-stack.yaml]
+    - repoURL: https://github.com/tete192356789/K8s-Stackable.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "71"
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts     # chart ของ Loki ย้ายมาจาก grafana/helm-charts แล้ว
+      chart: loki
+      targetRevision: 18.14.0
+      helm:
+        valueFiles: [$values/gitops/monitoring/values/loki.yaml]
+    - repoURL: https://github.com/tete192356789/K8s-Stackable.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vector
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "72"
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.vector.dev
+      chart: vector
+      targetRevision: 0.59.0
+      helm:
+        valueFiles: [$values/gitops/monitoring/values/vector.yaml]
+    - repoURL: https://github.com/tete192356789/K8s-Stackable.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

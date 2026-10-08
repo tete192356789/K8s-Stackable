@@ -1,0 +1,60 @@
+# Loki 3.7.8 (chart 18.14.0 จาก grafana-community) — Monolithic 1 pod, เก็บ log ใน SeaweedFS bucket "loki", เก็บ 7 วัน
+deploymentMode: Monolithic
+
+loki:
+  auth_enabled: false                  # tenant เดียว (fake) — Grafana / Vector ไม่ต้องส่ง X-Scope-OrgID
+  commonConfig:
+    replication_factor: 1
+  schemaConfig:
+    configs:
+      - from: "2026-10-01"
+        store: tsdb
+        object_store: s3
+        schema: v13
+        index: { prefix: index_, period: 24h }
+  storage:
+    type: s3
+    bucketNames: { chunks: loki, ruler: loki }
+    s3:
+      endpoint: http://seaweedfs-s3.seaweedfs.svc:8333   # HTTP ภายใน cluster (Loki ไม่ได้บังคับ TLS เหมือน Trino)
+      region: us-east-1
+      accessKeyId: ${S3_ACCESS_KEY}                     # แทนค่าจาก env ตอนรัน (-config.expand-env)
+      secretAccessKey: ${S3_SECRET_KEY}
+      s3ForcePathStyle: true
+      insecure: true
+  limits_config:
+    retention_period: 168h
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    max_cache_freshness_per_query: 10m
+    split_queries_by_interval: 15m
+    query_timeout: 300s
+    volume_enabled: true
+  compactor:
+    retention_enabled: true            # ลบ log เก่ากว่า retention_period
+    delete_request_store: s3
+
+singleBinary:
+  replicas: 1
+  extraArgs: [-config.expand-env=true]
+  extraEnvFrom:
+    - secretRef: { name: loki-s3 }     # ExternalSecret ใน gitops/monitoring/secrets.yaml
+  persistence:
+    size: 5Gi                          # WAL + cache ของ index (ข้อมูลจริงอยู่ใน S3)
+    storageClass: longhorn
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1Gi }
+
+# Monolithic: target ของโหมดอื่นต้องเป็น 0 (ค่าเริ่มต้นของ chart คือ 3)
+write: { replicas: 0 }
+read: { replicas: 0 }
+backend: { replicas: 0 }
+
+# ปิดของที่ไม่ใช้ใน PoC — chunksCache ค่าเริ่มต้นจอง RAM หลาย GB
+chunksCache: { enabled: false }
+resultsCache: { enabled: false }
+gateway: { enabled: false }            # Grafana / Vector ต่อ loki:3100 ตรง
+lokiCanary: { enabled: false }
+test: { enabled: false }
+sidecar: { rules: { enabled: false } } # ยังไม่ใช้ alert rule จาก log
