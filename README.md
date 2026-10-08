@@ -35,6 +35,7 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 11 | Keycloak (operator, realm `platform`) | 26.7.4 | [11-keycloak.md](docs/install/11-keycloak.md) | ✅ |
 | 12 | Prometheus + Alertmanager + Grafana, Loki, Vector | — | — | |
 | 13 | OPA, Superset, Airflow | 26.7.0 | — | |
+| opt | Stackable Cockpit v2 (experimental web SQL editor for Trino) | 0.0.0-dev | [optional-cockpit.md](docs/install/optional-cockpit.md) | 🔄 |
 
 Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo CD syncs everything from `gitops/` (App-of-Apps, ordered with sync waves).
 

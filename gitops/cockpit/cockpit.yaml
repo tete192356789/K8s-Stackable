@@ -1,0 +1,184 @@
+# Stackable Cockpit v2 (experimental) — web UI: Trino SQL editor + schema browser, login ผ่าน Keycloak
+#   repo: github.com/stackabletech/cockpit — ยังไม่มี release; ใช้ build 0.0.0-dev (จาก main) pin ด้วย digest
+#   manifest นี้เขียนตาม Helm chart deploy/helm/cockpit ของ repo แต่เพิ่ม NODE_EXTRA_CA_CERTS ให้ Node.js เชื่อ internal CA
+#   (chart ยังไม่มีช่องเพิ่ม env / volume) — เวลาอัปเดตให้เทียบกับ chart ใน repo อีกครั้ง
+#
+#   ผู้ใช้ ──HTTPS──▶ Traefik ──▶ cockpit:3000 ──OIDC──▶ Keycloak (realm platform, client cockpit)
+#                                     └──HTTPS :8443, X-Trino-User=<preferred_username>──▶ trino-coordinator
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cockpit
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: cockpit
+  data:
+    - secretKey: session-secret
+      remoteRef: { key: cockpit/session, property: session-secret }
+    - secretKey: oidc-client-secret
+      remoteRef: { key: keycloak/clients, property: cockpit }
+---
+# ใช้แค่ ca.crt (= platform CA) ให้ Cockpit เชื่อ Keycloak — แบบเดียวกับ argocd-ca-trust
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cockpit-ca-trust
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  secretName: cockpit-ca-trust
+  commonName: cockpit-ca-trust
+  dnsNames: [cockpit-ca-trust.data-platform.svc]
+  duration: 2160h
+  renewBefore: 360h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  issuerRef: { name: platform-ca, kind: ClusterIssuer, group: cert-manager.io }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cockpit
+  namespace: data-platform
+data:
+  base-url: https://cockpit.172.19.10.62.sslip.io
+  origin: https://cockpit.172.19.10.62.sslip.io
+  oidc-discovery-url: https://keycloak.172.19.10.62.sslip.io/realms/platform/.well-known/openid-configuration
+  oidc-client-id: cockpit
+  trino-url: https://trino-coordinator.data-platform.svc.cluster.local:8443
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cockpit
+  namespace: data-platform
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cockpit
+  namespace: data-platform
+  labels: { app.kubernetes.io/name: cockpit }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: cockpit }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: cockpit }
+    spec:
+      serviceAccountName: cockpit
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 782252253
+        fsGroup: 782252253
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: cockpit
+          image: oci.stackable.tech/sdp/cockpit:0.0.0-dev@sha256:2e247ed3d98f2cb1acee98b65c75f7d86c0881e81f995cc04c4fd2d759532db9
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 782252253
+          ports:
+            - { name: http, containerPort: 3000, protocol: TCP }
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: PORT, value: "3000" }
+            - { name: NODE_EXTRA_CA_CERTS, value: /etc/platform-ca/ca.crt }      # เชื่อ internal CA (Keycloak)
+            - { name: PROTOCOL_HEADER, value: x-forwarded-proto }               # อยู่หลัง Traefik
+            - { name: HOST_HEADER, value: x-forwarded-host }
+            - name: STACKABLE_COCKPIT_SESSION_SECRET
+              valueFrom: { secretKeyRef: { name: cockpit, key: session-secret } }
+            - name: STACKABLE_COCKPIT_OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: cockpit, key: oidc-client-secret } }
+            - name: STACKABLE_COCKPIT_BASE_URL
+              valueFrom: { configMapKeyRef: { name: cockpit, key: base-url } }
+            - name: ORIGIN
+              valueFrom: { configMapKeyRef: { name: cockpit, key: origin } }
+            - name: STACKABLE_COCKPIT_OIDC_DISCOVERY_URL
+              valueFrom: { configMapKeyRef: { name: cockpit, key: oidc-discovery-url } }
+            - name: STACKABLE_COCKPIT_OIDC_CLIENT_ID
+              valueFrom: { configMapKeyRef: { name: cockpit, key: oidc-client-id } }
+            - { name: STACKABLE_COCKPIT_TRINO_USER_CLAIM, value: preferred_username }
+            - name: STACKABLE_COCKPIT_TRINO_URL
+              valueFrom: { configMapKeyRef: { name: cockpit, key: trino-url } }
+            - { name: STACKABLE_COCKPIT_TRINO_USER_IMPERSONATION, value: "true" }   # ส่ง X-Trino-User = user ที่ login
+            - { name: STACKABLE_COCKPIT_TRINO_TLS_CA_CERT, value: /stackable/trino-tls/ca.crt }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: trino-tls, mountPath: /stackable/trino-tls, readOnly: true }
+            - { name: platform-ca, mountPath: /etc/platform-ca, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 30
+            timeoutSeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        # ca.crt ของ cert ที่ Trino ใช้ (SecretClass tls ของ secret-operator)
+        - name: trino-tls
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                annotations:
+                  secrets.stackable.tech/class: tls
+                  secrets.stackable.tech/scope: pod
+              spec:
+                storageClassName: secrets.stackable.tech
+                accessModes: [ReadWriteOnce]
+                resources: { requests: { storage: "1" } }
+        - name: platform-ca
+          secret:
+            secretName: cockpit-ca-trust
+            items: [{ key: ca.crt, path: ca.crt }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockpit
+  namespace: data-platform
+spec:
+  selector: { app.kubernetes.io/name: cockpit }
+  ports:
+    - { name: http, port: 3000, targetPort: http, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cockpit
+  namespace: data-platform
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: cockpit.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: cockpit, port: { number: 3000 } }

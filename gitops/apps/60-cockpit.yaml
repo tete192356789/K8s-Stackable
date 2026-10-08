@@ -1,0 +1,30 @@
+# wave 60: Stackable Cockpit v2 (experimental) — ทดลองใน PoC เท่านั้น
+# ต้องมีก่อน: client "cockpit" ใน Keycloak + OpenBao secret/keycloak/clients (cockpit) และ secret/cockpit/session
+#            (ดู docs/install/optional-cockpit.md)
+# ถอด: ลบไฟล์นี้แล้ว push (prune: true → ลบ resource ทั้งหมดของ Cockpit)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cockpit
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "60"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/cockpit
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
