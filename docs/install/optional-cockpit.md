@@ -76,7 +76,7 @@ kubectl -n data-platform logs deploy/cockpit --tail=50
 1. เปิด `https://cockpit.172.19.10.62.sslip.io` → redirect ไป Keycloak → login `poc-engineer`
 2. Schema browser ต้องเห็น catalog `iceberg` → schema `demo` → table `nation`
 3. รัน `SELECT name FROM iceberg.demo.nation ORDER BY nationkey LIMIT 5`
-4. ตรวจว่า query รันในนามของ user ที่ login — ใน Trino Web UI (tunnel 18443, `https://localhost:18443/ui/`) คอลัมน์ **User** ต้องเป็น `poc-engineer`
+4. ตรวจว่า query รันในนามของ user ที่ login — ใน Trino Web UI (tunnel 18443, `https://localhost:18443/ui/`) คอลัมน์ **User** ต้องเป็น `poc-engineer` (build ปัจจุบันยังเป็น `anonymous` — ดู bug ในหัวข้อข้อจำกัด)
 
 ---
 
@@ -84,6 +84,7 @@ kubectl -n data-platform logs deploy/cockpit --tail=50
 
 | เรื่อง | รายละเอียด |
 |---|---|
+| ⚠️ **Bug: ทุก query ไปถึง Trino เป็น user `anonymous`** (ยืนยันแล้ว 2026-10-08) | log ขึ้น `Resolved Trino user from OIDC claim` (Keycloak ส่ง `preferred_username` มาถูก) แต่ Cockpit ไม่เก็บค่าไว้ใน `username` → ใช้ค่า fallback `anonymous` — น่าจะมาจาก PR #330 (5 ต.ค.) ที่ตั้ง `input: false` ให้ field `username` ซึ่ง better-auth กรองค่าจาก `mapProfileToUser` ทิ้งไปด้วย — แก้ได้โดยรอ build ใหม่จาก upstream หรือถอยไปใช้ build ก่อน #330 (จะมีช่องโหว่ให้ผู้ใช้ตั้ง username ของตัวเองได้) |
 | ความปลอดภัย | ตอนนี้ Trino ไม่มี authentication — Cockpit ส่ง `X-Trino-User` ให้ แต่ใครที่ต่อ Trino ตรง ๆ ได้ก็ตั้งชื่อ user เองได้ — สิทธิ์จริงต้องรอขั้น Trino SSO + OPA |
 | หลังเปิด authentication ใน Trino | Cockpit รองรับ Trino auth แค่ `none` / `basic` + impersonation — ต้องให้ Cockpit login เป็น service user (basic) แล้ว OPA อนุญาตให้ impersonate ผู้ใช้ — ตั้งตอนทำ Trino SSO |
 | อัปเดต | build ใหม่ออกบ่อย: ดู digest ล่าสุดของ `0.0.0-dev`, เทียบ env ใน chart ของ repo, แก้ `image:` ใน `gitops/cockpit/cockpit.yaml` แล้ว push |
