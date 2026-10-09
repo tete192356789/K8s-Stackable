@@ -65,3 +65,25 @@ spec:
       app: longhorn-manager
   endpoints:
     - port: manager
+---
+# Longhorn 1.12 เปิด networkPolicies.restrictInternalTraffic เป็นค่าเริ่มต้น → longhorn-manager รับ traffic
+# จาก component ของ Longhorn เท่านั้น (scrape ได้ "context deadline exceeded") — เปิดให้ Prometheus เข้า :9500
+# NetworkPolicy เป็นแบบบวกกัน: policy นี้เพิ่มสิทธิ์ ไม่ได้แทน policy เดิมของ Longhorn
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: longhorn-system
+spec:
+  podSelector:
+    matchLabels:
+      app: longhorn-manager
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+          podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { port: 9500, protocol: TCP }

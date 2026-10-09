@@ -2,17 +2,17 @@
 
 Metrics และ log ของทั้ง platform ดูได้ที่เดียวใน Grafana (login ผ่าน Keycloak)
 
-| รายการ | ค่า |
-|---|---|
-| kube-prometheus-stack | chart **92.1.1** — Prometheus Operator v0.94.1, Prometheus v3.15.0, Alertmanager v0.34.1, Grafana 13.2.3, kube-state-metrics 2.20.0, node-exporter 1.12.1 |
-| Loki | **3.7.8** (chart 18.14.0 จาก `grafana-community.github.io/helm-charts` — chart ย้ายออกจาก `grafana/helm-charts` แล้ว) — Monolithic 1 pod |
-| Vector | **0.59.0** (chart 0.59.0) — Agent DaemonSet ทุก node |
-| Namespace | `monitoring` |
-| Grafana | `https://grafana.172.19.10.62.sslip.io` — SSO client `grafana` (มีอยู่แล้วจาก realm import ขั้นที่ 11) |
-| เก็บข้อมูล | Prometheus 7 วัน (PVC Longhorn 15Gi), Loki 7 วัน (bucket `loki` ใน SeaweedFS + PVC 5Gi สำหรับ WAL) |
-| RAM (request / limit) | รวมประมาณ **2.5 GB / 5 GB** — Prometheus 1Gi/2Gi, Loki 512Mi/1Gi, Grafana 256Mi/512Mi (+ sidecar), Vector 64Mi/256Mi × 3 node, ที่เหลือตัวละ 32–64Mi |
-| ไฟล์ใน repo | `gitops/apps/70-monitoring.yaml`, `gitops/monitoring/{secrets,scrape}.yaml`, `gitops/monitoring/values/{kube-prometheus-stack,loki,vector}.yaml` |
-| ต้องติดตั้งก่อน | ขั้นที่ 4 (CRD ของ Prometheus Operator), 6 (bucket `loki`), 11 (Keycloak) |
+| รายการ                   | ค่า                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| kube-prometheus-stack          | chart**92.1.1** — Prometheus Operator v0.94.1, Prometheus v3.15.0, Alertmanager v0.34.1, Grafana 13.2.3, kube-state-metrics 2.20.0, node-exporter 1.12.1                    |
+| Loki                           | **3.7.8** (chart 18.14.0 จาก `grafana-community.github.io/helm-charts` — chart ย้ายออกจาก `grafana/helm-charts` แล้ว) — Monolithic 1 pod              |
+| Vector                         | **0.59.0** (chart 0.59.0) — Agent DaemonSet ทุก node                                                                                                                     |
+| Namespace                      | `monitoring`                                                                                                                                                                     |
+| Grafana                        | `https://grafana.172.19.10.62.sslip.io` — SSO client `grafana` (มีอยู่แล้วจาก realm import ขั้นที่ 11)                                                    |
+| เก็บข้อมูล           | Prometheus 7 วัน (PVC Longhorn 15Gi), Loki 7 วัน (bucket`loki` ใน SeaweedFS + PVC 5Gi สำหรับ WAL)                                                                  |
+| RAM (request / limit)          | รวมประมาณ**2.5 GB / 5 GB** — Prometheus 1Gi/2Gi, Loki 512Mi/1Gi, Grafana 256Mi/512Mi (+ sidecar), Vector 64Mi/256Mi × 3 node, ที่เหลือตัวละ 32–64Mi |
+| ไฟล์ใน repo              | `gitops/apps/70-monitoring.yaml`, `gitops/monitoring/{secrets,scrape}.yaml`, `gitops/monitoring/values/{kube-prometheus-stack,loki,vector}.yaml`                             |
+| ต้องติดตั้งก่อน | ขั้นที่ 4 (CRD ของ Prometheus Operator), 6 (bucket`loki`), 11 (Keycloak)                                                                                               |
 
 ```
                  ┌──────────── scrape ทุก 60s ─────────────┐
@@ -29,12 +29,12 @@ pod log ──▶ Vector (DaemonSet, /var/log/pods) ──HTTP──▶ Loki :31
 
 ### ทำไมแบ่งเป็น 4 Application
 
-| Application | wave | เนื้อหา |
-|---|---|---|
-| `monitoring` | 70 | `gitops/monitoring/*.yaml` — ExternalSecret 3 ตัว, Certificate `grafana-ca-trust`, ServiceMonitor/PodMonitor ของ Stackable, CNPG, Longhorn (ต้องมี secret ก่อน Grafana / Loki start) |
-| `kube-prometheus-stack` | 71 | chart จาก Helm repo + values จาก Git (Argo CD **multi-source**: `$values` = repo นี้) |
-| `loki` | 71 | เหมือนกัน |
-| `vector` | 72 | ส่ง log เข้า Loki — รอให้ Loki ขึ้นก่อน |
+| Application               | wave | เนื้อหา                                                                                                                                                                                            |
+| ------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `monitoring`            | 70   | `gitops/monitoring/*.yaml` — ExternalSecret 3 ตัว, Certificate `grafana-ca-trust`, ServiceMonitor/PodMonitor ของ Stackable, CNPG, Longhorn (ต้องมี secret ก่อน Grafana / Loki start) |
+| `kube-prometheus-stack` | 71   | chart จาก Helm repo + values จาก Git (Argo CD**multi-source**: `$values` = repo นี้)                                                                                                     |
+| `loki`                  | 71   | เหมือนกัน                                                                                                                                                                                        |
+| `vector`                | 72   | ส่ง log เข้า Loki — รอให้ Loki ขึ้นก่อน                                                                                                                                              |
 
 values อยู่ใน `gitops/monitoring/values/` — Application `monitoring` sync โฟลเดอร์แบบไม่ recursive จึงไม่ apply ไฟล์ values เป็น manifest
 
@@ -42,25 +42,25 @@ values อยู่ใน `gitops/monitoring/values/` — Application `monitorin
 
 ## ค่าที่ตั้ง
 
-| ค่า | ตั้งเป็น | เหตุผล |
-|---|---|---|
-| `crds.enabled` | `false` | ลง CRD แยกแล้วในขั้นที่ 4 (32.0.1 = operator v0.94.1 ตรงกับ chart 92.1.1) — ถ้าอัปเกรด chart ข้าม major ต้องอัปเกรด CRD ก่อน |
-| `fullnameOverride` | `kps` | ชื่อ resource สั้นลง (`kps-prometheus`, `kps-alertmanager`) — Grafana / kube-state-metrics / node-exporter (subchart) ยังใช้ชื่อ `kube-prometheus-stack-*` |
-| `kubeEtcd`, `kubeScheduler`, `kubeControllerManager`, `kubeProxy` | ปิด (+ rule ที่เกี่ยวข้อง) | kubeadm ให้ 4 ตัวนี้เปิด metrics ที่ `127.0.0.1` เท่านั้น → scrape ไม่ได้ และ alert `...Down` ดังตลอด |
-| `prometheusOperator.admissionWebhooks` / `tls` | ปิดทั้งคู่ | ไม่ต้องมี job สร้าง cert และไม่มี `caBundle` ให้ Argo CD diff — PrometheusRule ที่ผิดจะไม่ถูกปฏิเสธตอน apply (ดู error ใน log ของ operator แทน) |
-| `*SelectorNilUsesHelmValues` | `false` | Prometheus เลือก ServiceMonitor / PodMonitor / PrometheusRule **ทุกตัวใน cluster** ไม่ต้องติด label `release` |
-| `scrapeInterval` | `60s` | ค่าเริ่มต้น 30s — ลด CPU / disk สำหรับ PoC |
-| `retention` / `retentionSize` | `7d` / `12GB` | PVC 15Gi (Longhorn replica 2 → ใช้ disk จริง 30Gi) |
-| Grafana `persistence` | ปิด | dashboard + datasource มาจาก provisioning (ConfigMap) และ user มาจาก Keycloak — pod restart แล้วไม่หาย ยกเว้น dashboard ที่สร้างเองใน UI (ให้ export เป็น JSON แล้วเก็บใน Git) |
-| Grafana `role_attribute_path` | `platform-admins` → Admin, `data-engineers` → Editor, อื่น ๆ → Viewer | ใช้ claim `groups` จาก Keycloak |
-| Grafana `tls_client_ca` | `/etc/platform-ca/ca.crt` | Grafana ต้องเชื่อ cert ของ Keycloak ตอนแลก token — `ca.crt` จาก Certificate `grafana-ca-trust` (แบบเดียวกับ Argo CD) |
-| Loki `deploymentMode` | `Monolithic` (+ `write/read/backend.replicas: 0`) | pod เดียวทำทุกหน้าที่ — chart บังคับให้ target ของโหมดอื่นเป็น 0 |
-| Loki `chunksCache` / `resultsCache` | ปิด | ค่าเริ่มต้นสร้าง memcached ที่จอง RAM หลาย GB |
-| Loki `gateway`, `lokiCanary`, `test`, rules sidecar | ปิด | ไม่จำเป็นใน PoC — Grafana และ Vector ต่อ `loki:3100` ตรง |
-| Loki S3 | `http://seaweedfs-s3.seaweedfs.svc:8333`, path-style, key จาก env (`-config.expand-env=true`) | Loki ไม่บังคับ TLS เหมือน Trino — key มาจาก Secret `loki-s3` (OpenBao `secret/seaweedfs/s3-admin`) |
-| Loki `retention_period` | `168h` | compactor ลบ log เก่ากว่า 7 วันออกจาก bucket |
-| Vector labels | `namespace`, `pod`, `container`, `node` | ใช้แค่ field ที่ทุก log มี — label มากเกินทำให้ Loki ช้า (label ใน values ต้องเขียน `{{`{{ ... }}`}}` เพราะ chart ส่ง config ผ่าน `tpl` ของ Helm) |
-| Vector `encoding.codec` | `text` | ส่งเฉพาะข้อความ log — ไม่ส่ง metadata ของ pod ซ้ำทุกบรรทัด |
+| ค่า                                                                    | ตั้งเป็น                                                                                     | เหตุผล                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `crds.enabled`                                                          | `false`                                                                                            | ลง CRD แยกแล้วในขั้นที่ 4 (32.0.1 = operator v0.94.1 ตรงกับ chart 92.1.1) — ถ้าอัปเกรด chart ข้าม major ต้องอัปเกรด CRD ก่อน                                                         |
+| `fullnameOverride`                                                      | `kps`                                                                                              | ชื่อ resource สั้นลง (`kps-prometheus`, `kps-alertmanager`) — Grafana / kube-state-metrics / node-exporter (subchart) ยังใช้ชื่อ `kube-prometheus-stack-*`                                                      |
+| `kubeEtcd`, `kubeScheduler`, `kubeControllerManager`, `kubeProxy` | ปิด (+ rule ที่เกี่ยวข้อง)                                                           | kubeadm ให้ 4 ตัวนี้เปิด metrics ที่`127.0.0.1` เท่านั้น → scrape ไม่ได้ และ alert `...Down` ดังตลอด                                                                                          |
+| `prometheusOperator.admissionWebhooks` / `tls`                        | ปิดทั้งคู่                                                                                 | ไม่ต้องมี job สร้าง cert และไม่มี`caBundle` ให้ Argo CD diff — PrometheusRule ที่ผิดจะไม่ถูกปฏิเสธตอน apply (ดู error ใน log ของ operator แทน)                                |
+| `*SelectorNilUsesHelmValues`                                            | `false`                                                                                            | Prometheus เลือก ServiceMonitor / PodMonitor / PrometheusRule**ทุกตัวใน cluster** ไม่ต้องติด label `release`                                                                                                |
+| `scrapeInterval`                                                        | `60s`                                                                                              | ค่าเริ่มต้น 30s — ลด CPU / disk สำหรับ PoC                                                                                                                                                                             |
+| `retention` / `retentionSize`                                         | `7d` / `12GB`                                                                                    | PVC 15Gi (Longhorn replica 2 → ใช้ disk จริง 30Gi)                                                                                                                                                                                 |
+| Grafana`persistence`                                                    | ปิด                                                                                               | dashboard + datasource มาจาก provisioning (ConfigMap) และ user มาจาก Keycloak — pod restart แล้วไม่หาย ยกเว้น dashboard ที่สร้างเองใน UI (ให้ export เป็น JSON แล้วเก็บใน Git) |
+| Grafana`role_attribute_path`                                            | `platform-admins` → Admin, `data-engineers` → Editor, อื่น ๆ → Viewer                    | ใช้ claim`groups` จาก Keycloak                                                                                                                                                                                                     |
+| Grafana`tls_client_ca`                                                  | `/etc/platform-ca/ca.crt`                                                                          | Grafana ต้องเชื่อ cert ของ Keycloak ตอนแลก token —`ca.crt` จาก Certificate `grafana-ca-trust` (แบบเดียวกับ Argo CD)                                                                                   |
+| Loki`deploymentMode`                                                    | `Monolithic` (+ `write/read/backend.replicas: 0`)                                                | pod เดียวทำทุกหน้าที่ — chart บังคับให้ target ของโหมดอื่นเป็น 0                                                                                                                                 |
+| Loki`chunksCache` / `resultsCache`                                    | ปิด                                                                                               | ค่าเริ่มต้นสร้าง memcached ที่จอง RAM หลาย GB                                                                                                                                                                    |
+| Loki`gateway`, `lokiCanary`, `test`, rules sidecar                  | ปิด                                                                                               | ไม่จำเป็นใน PoC — Grafana และ Vector ต่อ`loki:3100` ตรง                                                                                                                                                             |
+| Loki S3                                                                   | `http://seaweedfs-s3.seaweedfs.svc:8333`, path-style, key จาก env (`-config.expand-env=true`) | Loki ไม่บังคับ TLS เหมือน Trino — key มาจาก Secret`loki-s3` (OpenBao `secret/seaweedfs/s3-admin`)                                                                                                                 |
+| Loki`retention_period`                                                  | `168h`                                                                                             | compactor ลบ log เก่ากว่า 7 วันออกจาก bucket                                                                                                                                                                            |
+| Vector labels                                                             | `namespace`, `pod`, `container`, `node`                                                      | ใช้แค่ field ที่ทุก log มี — label มากเกินทำให้ Loki ช้า (label ใน values ต้องเขียน`{{`{{ ... }}`}}` เพราะ chart ส่ง config ผ่าน `tpl` ของ Helm)                             |
+| Vector`encoding.codec`                                                  | `text`                                                                                             | ส่งเฉพาะข้อความ log — ไม่ส่ง metadata ของ pod ซ้ำทุกบรรทัด                                                                                                                                            |
 
 ### Stackable metrics
 
@@ -74,7 +74,7 @@ ServiceMonitor `stackable` (`gitops/monitoring/scrape.yaml`) อ่าน annota
 monitoring ขอ RAM เพิ่มราว 2.5 GB — ถ้า master ยังรับ pod ส่วนใหญ่อยู่ (memory requests ~82%) ให้ย้าย Trino ออกก่อน
 
 ```bash
-kubectl describe nodes | grep -E '^Name:|^  memory' 
+kubectl describe nodes | grep -E '^Name:|^  memory'
 ```
 
 ถ้า master สูงกว่า ~75% (ข้ามได้ถ้าทำไปแล้ว):
@@ -140,6 +140,7 @@ V=gitops/monitoring/values
   helm template vector vector --repo https://helm.vector.dev --version 0.59.0 -n monitoring -f $V/vector.yaml
 } | grep -oE '(image: *"?|config-reloader=)[^" ]+' | sed -E 's/^(image: *"?|config-reloader=)//' | sort -u
 ```
+
 </details>
 
 ## ขั้นที่ 3: Push และ sync
@@ -160,16 +161,16 @@ kubectl -n monitoring get pods -o wide
 
 ต้องเห็น (ชื่อโดยประมาณ):
 
-| Pod | จำนวน |
-|---|---|
-| `kps-operator-…` | 1 |
-| `prometheus-kps-prometheus-0` | 1 (2/2) |
-| `alertmanager-kps-alertmanager-0` | 1 (2/2) |
-| `kube-prometheus-stack-grafana-…` | 1 (3/3) |
-| `kube-prometheus-stack-kube-state-metrics-…` | 1 |
+| Pod                                                   | จำนวน      |
+| ----------------------------------------------------- | --------------- |
+| `kps-operator-…`                                   | 1               |
+| `prometheus-kps-prometheus-0`                       | 1 (2/2)         |
+| `alertmanager-kps-alertmanager-0`                   | 1 (2/2)         |
+| `kube-prometheus-stack-grafana-…`                  | 1 (3/3)         |
+| `kube-prometheus-stack-kube-state-metrics-…`       | 1               |
 | `kube-prometheus-stack-prometheus-node-exporter-…` | 3 (ทุก node) |
-| `loki-0` | 1 |
-| `vector-…` | 3 (ทุก node) |
+| `loki-0`                                            | 1               |
+| `vector-…`                                         | 3 (ทุก node) |
 
 ## ขั้นที่ 4: ตรวจ (master)
 
@@ -211,31 +212,32 @@ admin ภายใน (กรณี SSO เสีย): user `admin`, password �
 
 ## สิ่งที่ยังไม่ได้ทำ (ภายหลัง)
 
-| เรื่อง | หมายเหตุ |
-|---|---|
-| ช่องทางแจ้งเตือนของ Alertmanager | ตอนนี้ receiver `null` — เพิ่ม email / Slack / Teams ใน `alertmanager.config` |
-| Prometheus / Alertmanager UI | ไม่มี Ingress (ไม่มี authentication ในตัว) — ใช้ port-forward หรือดูผ่าน Grafana |
-| Dashboard ของ Stackable / Trino / CNPG / Longhorn | import จาก grafana.com แล้ว export เก็บเป็น ConfigMap (label `grafana_dashboard: "1"`) ใน `gitops/monitoring/` |
-| Metrics ของ Traefik, cert-manager, SeaweedFS, OpenBao, Argo CD, Keycloak | เปิด metrics / ServiceMonitor ใน values ของแต่ละตัว |
-| log ของ Stackable แบบ structured | Stackable รองรับส่ง log ผ่าน Vector aggregator (`vectorAggregatorConfigMapName`) — ตอนนี้เก็บจาก stdout ด้วย Vector agent ก็พอ |
+| เรื่อง                                                                | หมายเหตุ                                                                                                                                                    |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ช่องทางแจ้งเตือนของ Alertmanager                         | ตอนนี้ receiver`null` — เพิ่ม email / Slack / Teams ใน `alertmanager.config`                                                                      |
+| Prometheus / Alertmanager UI                                                | ไม่มี Ingress (ไม่มี authentication ในตัว) — ใช้ port-forward หรือดูผ่าน Grafana                                                       |
+| Dashboard ของ Stackable / Trino / CNPG / Longhorn                        | import จาก grafana.com แล้ว export เก็บเป็น ConfigMap (label`grafana_dashboard: "1"`) ใน `gitops/monitoring/`                                  |
+| Metrics ของ Traefik, cert-manager, SeaweedFS, OpenBao, Argo CD, Keycloak | เปิด metrics / ServiceMonitor ใน values ของแต่ละตัว                                                                                                |
+| log ของ Stackable แบบ structured                                      | Stackable รองรับส่ง log ผ่าน Vector aggregator (`vectorAggregatorConfigMapName`) — ตอนนี้เก็บจาก stdout ด้วย Vector agent ก็พอ |
 
 ---
 
 ## ปัญหาที่พบบ่อย
 
-| อาการ | สาเหตุ | วิธีแก้ |
-|---|---|---|
-| Application `monitoring` ค้าง, ExternalSecret `SecretSyncedError` | ยังไม่มี `secret/grafana/admin` หรือ key ผิดชื่อ | ขั้นที่ 1 — key ต้องเป็น `admin-user`, `admin-password` |
-| Grafana pod `CreateContainerConfigError` | Secret `grafana-admin` / `grafana-oidc` ยังไม่ถูกสร้าง | `kubectl -n monitoring get externalsecret` แล้วแก้ตามข้อบน |
-| Grafana login แล้ว `Login failed` / log `x509: certificate signed by unknown authority` | Grafana ไม่เชื่อ cert ของ Keycloak | ตรวจ `kubectl -n monitoring get certificate grafana-ca-trust` (READY) และ `kubectl -n monitoring exec deploy/kube-prometheus-stack-grafana -c grafana -- ls /etc/platform-ca` |
-| Keycloak `Invalid parameter: redirect_uri` | redirect URI ของ client `grafana` ไม่ตรง | ใน Keycloak client `grafana` ต้องมี `https://grafana.172.19.10.62.sslip.io/*` |
-| login ได้แต่ role เป็น Viewer ทุกคน | token ไม่มี claim `groups` | ตรวจ mapper `groups` ของ client `grafana` (Full group path: Off) |
-| `loki-0` CrashLoop, log `NoCredentialProviders` / `AccessDenied` / `NoSuchBucket` | key S3 ไม่ถูกส่งเข้า หรือไม่มี bucket `loki` | `kubectl -n monitoring get secret loki-s3`, ตรวจ bucket ในขั้นที่ 1 |
-| Vector log `Failed to render template` | log บางบรรทัดไม่มี field ที่ใช้ทำ label | ส่งแค่ log ชุดนั้นไม่ได้ (บรรทัดอื่นยังส่งปกติ) — แจ้งผลพร้อม log |
-| Loki `entry too far behind` / `rate limit` ตอนเริ่ม | Vector ส่ง log เก่าทั้งหมดของ node รอบแรก | หายเองเมื่อส่งทันแล้ว — `out_of_order_action: accept` ช่วยไว้บางส่วน |
-| target `stackable` เป็น `down` ด้วย `connection refused` / `server returned HTTP status 400` | scheme / port ของ annotation ไม่ตรงกับที่ ServiceMonitor ตีความ | ส่งผลของคำสั่ง `kubectl get svc -A -l prometheus.io/scrape=true …` ในขั้นที่ 4.1 |
-| `kube-prometheus-stack` OutOfSync ตลอดที่ Secret `kps-prometheus-token` | Kubernetes เติม `data` ให้ secret ชนิด service-account-token | เพิ่ม `ignoreDifferences` ให้ Secret นี้ใน `gitops/apps/70-monitoring.yaml` |
-| Pod `Pending` — `Insufficient memory` | RAM ของ node ไม่พอ | ขั้นที่ 0 |
+| อาการ                                                                                                  | สาเหตุ                                                                         | วิธีแก้                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application`monitoring` ค้าง, ExternalSecret `SecretSyncedError`                                    | ยังไม่มี`secret/grafana/admin` หรือ key ผิดชื่อ                 | ขั้นที่ 1 — key ต้องเป็น`admin-user`, `admin-password`                                                                                                              |
+| Grafana pod`CreateContainerConfigError`                                                                   | Secret`grafana-admin` / `grafana-oidc` ยังไม่ถูกสร้าง              | `kubectl -n monitoring get externalsecret` แล้วแก้ตามข้อบน                                                                                                             |
+| Grafana login แล้ว`Login failed` / log `x509: certificate signed by unknown authority`              | Grafana ไม่เชื่อ cert ของ Keycloak                                        | ตรวจ`kubectl -n monitoring get certificate grafana-ca-trust` (READY) และ `kubectl -n monitoring exec deploy/kube-prometheus-stack-grafana -c grafana -- ls /etc/platform-ca` |
+| Keycloak`Invalid parameter: redirect_uri`                                                                 | redirect URI ของ client`grafana` ไม่ตรง                                   | ใน Keycloak client`grafana` ต้องมี `https://grafana.172.19.10.62.sslip.io/*`                                                                                                |
+| login ได้แต่ role เป็น Viewer ทุกคน                                                          | token ไม่มี claim`groups`                                                     | ตรวจ mapper`groups` ของ client `grafana` (Full group path: Off)                                                                                                              |
+| `loki-0` CrashLoop, log `NoCredentialProviders` / `AccessDenied` / `NoSuchBucket`                   | key S3 ไม่ถูกส่งเข้า หรือไม่มี bucket`loki`                  | `kubectl -n monitoring get secret loki-s3`, ตรวจ bucket ในขั้นที่ 1                                                                                                      |
+| Vector log`Failed to render template`                                                                     | log บางบรรทัดไม่มี field ที่ใช้ทำ label                        | ส่งแค่ log ชุดนั้นไม่ได้ (บรรทัดอื่นยังส่งปกติ) — แจ้งผลพร้อม log                                                                    |
+| Loki`entry too far behind` / `rate limit` ตอนเริ่ม                                              | Vector ส่ง log เก่าทั้งหมดของ node รอบแรก                     | หายเองเมื่อส่งทันแล้ว —`out_of_order_action: accept` ช่วยไว้บางส่วน                                                                               |
+| target `longhorn` เป็น `down` ด้วย `context deadline exceeded` | Longhorn 1.12 ตั้ง `networkPolicies.restrictInternalTraffic: true` เป็นค่าเริ่มต้น → NetworkPolicy `longhorn-manager` บล็อก Prometheus | NetworkPolicy `allow-prometheus-scrape` (ns `longhorn-system`) ใน `gitops/monitoring/scrape.yaml` เปิดให้ Prometheus เข้า :9500 |
+| target`stackable` เป็น `down` ด้วย `connection refused` / `server returned HTTP status 400` | scheme / port ของ annotation ไม่ตรงกับที่ ServiceMonitor ตีความ | ส่งผลของคำสั่ง`kubectl get svc -A -l prometheus.io/scrape=true …` ในขั้นที่ 4.1                                                                               |
+| `kube-prometheus-stack` OutOfSync ตลอดที่ Secret `kps-prometheus-token`                          | Kubernetes เติม`data` ให้ secret ชนิด service-account-token             | เพิ่ม`ignoreDifferences` ให้ Secret นี้ใน `gitops/apps/70-monitoring.yaml`                                                                                             |
+| Pod`Pending` — `Insufficient memory`                                                                   | RAM ของ node ไม่พอ                                                           | ขั้นที่ 0                                                                                                                                                                        |
 
 ## ถอดออก
 
