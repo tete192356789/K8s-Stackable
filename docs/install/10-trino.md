@@ -2,6 +2,8 @@
 
 Query engine ของ platform — อ่าน/เขียนตาราง Iceberg บน SeaweedFS ผ่าน Hive Metastore (Thrift)
 
+> **หลังขั้นที่ 13** Trino มี authentication (password / Keycloak) และ OPA แล้ว — ตัวอย่าง Python ในขั้นที่ 4 ต้องเพิ่ม `auth=BasicAuthentication("trino-admin", ...)` ดู [13-trino-sso-opa.md](13-trino-sso-opa.md)
+
 | รายการ | ค่า |
 |---|---|
 | Trino | 481 (Stackable 26.7.0, image `oci.stackable.tech/sdp/trino:481-stackable26.7.0`) |

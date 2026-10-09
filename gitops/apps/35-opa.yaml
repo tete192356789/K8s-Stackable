@@ -1,0 +1,24 @@
+# wave 35: OPA (OpaCluster "opa" + Trino policies) — ต้องมีก่อน Trino (40) ที่ใช้ OPA ตัดสินสิทธิ์
+# ต้องมีก่อน: client "opa-user-info" ใน Keycloak + OpenBao secret/keycloak/clients (opa-user-info)
+#            (ดู docs/install/13-trino-sso-opa.md)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opa
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "35"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/opa                 # kustomize (kustomization.yaml) — สร้าง ConfigMap ของ rego จากไฟล์
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

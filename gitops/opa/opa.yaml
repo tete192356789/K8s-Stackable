@@ -1,0 +1,92 @@
+# OpaCluster "opa" (OPA 1.16.2, Stackable 26.7.0) — Trino ถาม OPA ทุกครั้งว่า user ทำ action นี้ได้ไหม
+#   discovery ConfigMap: "opa" (key OPA = http://opa.data-platform.svc.cluster.local:8081/) — TrinoCluster อ้างชื่อนี้
+#   OPA รันเป็น DaemonSet (ทุก node) — Trino ถาม OPA บน node เดียวกัน
+#
+# user-info-fetcher (UIF): sidecar ใน pod ของ OPA ที่ถาม Keycloak ว่า user อยู่ group ไหน
+#   ใช้ client "opa-user-info" (service account + role realm-management/view-users) — สร้างใน Keycloak UI
+#   ได้ group เป็น path เช่น "/platform-admins" → trino_policies.rego จับคู่ด้วยชื่อนี้
+#   ใช้ได้กับทุกวิธี login ของ Trino (OIDC, password, impersonation) เพราะถามจาก username
+apiVersion: opa.stackable.tech/v1alpha2
+kind: OpaCluster
+metadata:
+  name: opa
+  namespace: data-platform
+spec:
+  image:
+    productVersion: 1.16.2
+  clusterConfig:
+    userInfo:
+      backend:
+        keycloak:
+          hostname: keycloak.172.19.10.62.sslip.io
+          port: 443
+          tls:
+            verification:
+              server:
+                caCert:
+                  secretClass: platform-ca          # ด้านล่าง — CA ที่ออก cert ให้ Keycloak
+          clientCredentialsSecret: opa-user-info    # clientId + clientSecret
+          adminRealm: platform
+          userRealm: platform
+      cache:
+        entryTimeToLive: 60s                         # เปลี่ยน group ใน Keycloak แล้วมีผลภายใน 1 นาที
+  servers:
+    config:
+      resources:
+        cpu: { min: 50m, max: 500m }
+        memory: { limit: 256Mi }
+    roleGroups:
+      default: {}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: opa-user-info
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: opa-user-info
+    template:
+      data:
+        clientId: opa-user-info
+        clientSecret: "{{ .clientSecret }}"
+  data:
+    - secretKey: clientSecret
+      remoteRef: { key: keycloak/clients, property: opa-user-info }
+---
+# CA ของ platform (ที่ออก cert ให้ Keycloak) สำหรับ product ของ Stackable — Trino (OIDC) และ OPA (UIF)
+# Certificate ตัวนี้ใช้แค่ ca.crt; SecretClass หา secret ที่ติด label นี้ใน namespace ของ pod (k8sSearch)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: platform-ca-trust
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  secretName: platform-ca-trust
+  secretTemplate:
+    labels:
+      secrets.stackable.tech/class: platform-ca
+  commonName: platform-ca-trust
+  dnsNames: [platform-ca-trust.data-platform.svc]
+  duration: 2160h
+  renewBefore: 360h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  issuerRef: { name: platform-ca, kind: ClusterIssuer, group: cert-manager.io }
+---
+apiVersion: secrets.stackable.tech/v1alpha1
+kind: SecretClass
+metadata:
+  name: platform-ca
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backend:
+    k8sSearch:
+      searchNamespace:
+        pod: {}

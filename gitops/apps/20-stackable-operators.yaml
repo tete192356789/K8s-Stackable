@@ -105,3 +105,25 @@ spec:
     automated: { prune: true, selfHeal: true }
     syncOptions: [CreateNamespace=true, ServerSideApply=true]
     retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+# OPA — ใช้ตัดสินสิทธิ์ของ Trino (OpaCluster ใน gitops/opa/, wave 35)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stackable-opa-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: default
+  source:
+    repoURL: oci.stackable.tech/sdp-charts
+    chart: opa-operator
+    targetRevision: 26.7.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: stackable-operators
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

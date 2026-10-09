@@ -1,4 +1,5 @@
-# wave 40: Trino 481 (namespace data-platform) — ใช้ Hive Metastore (Thrift) + S3Connection seaweedfs จาก wave 30
+# wave 40: Trino 481 (namespace data-platform) — ใช้ Hive Metastore (Thrift) + S3Connection seaweedfs จาก wave 30, OPA จาก wave 35
+# ต้องมีก่อน: OpenBao secret/trino/users และ secret/keycloak/clients (trino) — ดู docs/install/13-trino-sso-opa.md
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

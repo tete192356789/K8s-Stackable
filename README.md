@@ -31,10 +31,11 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 7 | OpenBao + External Secrets | 2.7.0 / 2.11.0 | [07-openbao-eso.md](docs/install/07-openbao-eso.md) | ✅ |
 | 8 | Argo CD (last Helm-installed component) | 3.5.3 | [08-argocd.md](docs/install/08-argocd.md) | ✅ |
 | 9 | GitOps: CNPG cluster (PostgreSQL 17), Stackable operators, Hive Metastore 4.2.0 + Iceberg REST | 17.11 / 26.7.0 | [09-gitops-hive.md](docs/install/09-gitops-hive.md) | ✅ |
-| 10 | Trino (+ Iceberg), no auth yet; S3 over TLS via Traefik | 481 | [10-trino.md](docs/install/10-trino.md) | ✅ |
+| 10 | Trino (+ Iceberg); S3 over TLS via Traefik | 481 | [10-trino.md](docs/install/10-trino.md) | ✅ |
 | 11 | Keycloak (operator, realm `platform`) | 26.7.4 | [11-keycloak.md](docs/install/11-keycloak.md) | ✅ |
 | 12 | Prometheus + Alertmanager + Grafana (SSO), Loki, Vector | 92.1.1 (chart) / 3.7.8 / 0.59.0 | [12-monitoring.md](docs/install/12-monitoring.md) | ✅ |
-| 13 | OPA, Superset, Airflow | 26.7.0 | — | |
+| 13 | Trino SSO (Keycloak) + authorization with OPA | OPA 1.16.2 / 26.7.0 | [13-trino-sso-opa.md](docs/install/13-trino-sso-opa.md) | 🔄 |
+| 14 | Superset, Airflow | 26.7.0 | — | |
 | opt | Stackable Cockpit v2 (experimental web SQL editor for Trino) | 0.0.0-dev | [optional-cockpit.md](docs/install/optional-cockpit.md) | 🔄 |
 
 Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo CD syncs everything from `gitops/` (App-of-Apps, ordered with sync waves).

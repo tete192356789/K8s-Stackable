@@ -1,0 +1,28 @@
+# OPA (Stackable) สำหรับตัดสินสิทธิ์ของ Trino — Argo CD เห็นไฟล์นี้แล้ว build ด้วย kustomize ให้เอง
+#   opa.yaml                 OpaCluster + user-info-fetcher (ดึง group จาก Keycloak) + CA ของ Keycloak
+#   rules/*.rego             rule ของ Stackable สำหรับ Trino (package trino) — copy จาก trino-operator@26.7.0
+#                            tests/templates/kuttl/opa-authorization/trino_rules/trino/ — ห้ามแก้, อัปเดตตาม release
+#   trino_policies.rego      สิทธิ์ของเรา (package trino_policies) — แก้ไฟล์นี้เวลาเปลี่ยนสิทธิ์
+# ConfigMap ที่ติด label opa.stackable.tech/bundle ถูก bundle-builder ของ OPA โหลดเอง (ไม่ต้อง restart)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# ไม่ตั้ง namespace: ทั้งไฟล์ — kustomize จะใส่ให้ SecretClass (cluster-scoped) ด้วย; ระบุใน resource แต่ละตัวแทน
+resources:
+  - opa.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    opa.stackable.tech/bundle: "true"
+configMapGenerator:
+  - name: trino-opa-rules
+    namespace: data-platform
+    files:
+      - rules/actual_permissions.rego
+      - rules/policies.rego
+      - rules/requested_permissions.rego
+      - rules/util.rego
+      - rules/verification.rego
+  - name: trino-opa-policies
+    namespace: data-platform
+    files:
+      - trino_policies.rego

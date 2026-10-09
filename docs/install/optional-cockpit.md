@@ -8,7 +8,7 @@
 | Image | `oci.stackable.tech/sdp/cockpit:0.0.0-dev@sha256:2e247ed3…` (build จาก main วันที่ 2026-10-06, commit `ae08039`) — pin ด้วย digest กันเปลี่ยนเอง |
 | ความสามารถ | Trino SQL editor + autocomplete, schema browser, ดูผลลัพธ์ (storage browser ยังปิด) |
 | Login | Keycloak realm `platform` — client **`cockpit`** (สร้างเพิ่มใน UI เพราะ realm import ทำครั้งเดียว) |
-| Query รันในนามของ | **user ที่ login** (`X-Trino-User` = `preferred_username`) — Trino ยังไม่มี authentication จึงเชื่อ header นี้ |
+| Query รันในนามของ | หลังขั้นที่ 13: Cockpit login Trino ด้วย service user **`cockpit`** (Basic auth) และ**ปิด impersonation ชั่วคราว** เพราะ bug [cockpit#371](https://github.com/stackabletech/cockpit/issues/371) — ทุก query จึงรันในนาม `cockpit` (อ่านอย่างเดียวตาม OPA) |
 | URL | `https://cockpit.172.19.10.62.sslip.io` |
 | Namespace | `data-platform` |
 | RAM | request 128 Mi / limit 512 Mi |

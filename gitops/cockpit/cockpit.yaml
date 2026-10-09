@@ -4,7 +4,7 @@
 #   (chart ยังไม่มีช่องเพิ่ม env / volume) — เวลาอัปเดตให้เทียบกับ chart ใน repo อีกครั้ง
 #
 #   ผู้ใช้ ──HTTPS──▶ Traefik ──▶ cockpit:3000 ──OIDC──▶ Keycloak (realm platform, client cockpit)
-#                                     └──HTTPS :8443, X-Trino-User=<preferred_username>──▶ trino-coordinator
+#                                     └──HTTPS :8443, Basic auth user cockpit──▶ trino-coordinator
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -113,7 +113,15 @@ spec:
             - { name: STACKABLE_COCKPIT_TRINO_USER_CLAIM, value: preferred_username }
             - name: STACKABLE_COCKPIT_TRINO_URL
               valueFrom: { configMapKeyRef: { name: cockpit, key: trino-url } }
-            - { name: STACKABLE_COCKPIT_TRINO_USER_IMPERSONATION, value: "true" }   # ส่ง X-Trino-User = user ที่ login
+            # Trino มี authentication แล้ว: Cockpit login ด้วย service user "cockpit" (secret trino-users จาก OpenBao secret/trino/users)
+            - { name: STACKABLE_COCKPIT_TRINO_AUTH_TYPE, value: basic }
+            - { name: STACKABLE_COCKPIT_TRINO_AUTH_USERNAME, value: cockpit }
+            - name: STACKABLE_COCKPIT_TRINO_AUTH_PASSWORD
+              valueFrom: { secretKeyRef: { name: trino-users, key: cockpit } }
+            # ปิด impersonation ชั่วคราว: build นี้ส่ง X-Trino-User = "anonymous" เสมอ (stackabletech/cockpit#371)
+            # → ทุก query รันในนาม "cockpit" (อ่านอย่างเดียวตาม OPA) — เปิดกลับเป็น "true" เมื่อ upstream แก้แล้ว
+            #   (OPA อนุญาตให้ cockpit impersonate ไว้แล้วใน gitops/opa/trino_policies.rego)
+            - { name: STACKABLE_COCKPIT_TRINO_USER_IMPERSONATION, value: "false" }
             - { name: STACKABLE_COCKPIT_TRINO_TLS_CA_CERT, value: /stackable/trino-tls/ca.crt }
           volumeMounts:
             - { name: tmp, mountPath: /tmp }

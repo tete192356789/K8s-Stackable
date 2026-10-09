@@ -1,8 +1,13 @@
 # Trino 481 (Stackable 26.7.0) — PoC
-#   coordinator 1 + worker 1, ไม่มี authentication (PoC ช่วงแรก — เข้าถึงได้แค่ภายใน cluster / port-forward)
+#   coordinator 1 + worker 1
 #   client ใช้ HTTPS :8443 (TLS ค่าเริ่มต้นของ operator, cert จาก SecretClass tls ของ secret-operator)
-#   ไม่ปิด TLS เพราะ (1) authentication (Keycloak) ภายหลังบังคับต้องมี TLS (2) serverSecretClass: null ไม่รอดผ่าน Argo CD
+#   ไม่ปิด TLS เพราะ (1) authentication บังคับต้องมี TLS (2) serverSecretClass: null ไม่รอดผ่าน Argo CD
 #   catalog: iceberg (Hive Metastore ผ่าน Thrift + SeaweedFS), tpch (ข้อมูลตัวอย่างสำหรับทดสอบ)
+#
+#   authentication (gitops/trino/auth.yaml):
+#     trino-users  password ของ service user (trino-admin, superset, airflow, cockpit) — CLI / JDBC / Python
+#     keycloak     OIDC — Web UI (https://trino.172.19.10.62.sslip.io) บังคับ login ผ่าน Keycloak
+#   authorization: OPA (gitops/opa/) — สิทธิ์ตาม group ใน Keycloak + ชื่อ service user
 apiVersion: trino.stackable.tech/v1alpha1
 kind: TrinoCluster
 metadata:
@@ -15,7 +20,22 @@ spec:
     catalogLabelSelector:
       matchLabels:
         trino: trino
+    authentication:
+      - authenticationClass: trino-users
+      - authenticationClass: keycloak
+        oidc:
+          clientCredentialsSecret: trino-oidc      # clientId + clientSecret
+    authorization:
+      opa:
+        configMapName: opa                         # discovery ConfigMap ของ OpaCluster "opa"
+        package: trino
   coordinators:
+    configOverrides:
+      config.properties:
+        # อยู่หลัง Traefik: ใช้ X-Forwarded-Proto/Host สร้าง redirect URI ของ OAuth2 ให้เป็น https://trino.…
+        # (ถ้าไม่เปิด Trino ปฏิเสธ request ที่มี X-Forwarded-* ด้วย 406)
+        http-server.process-forwarded: "true"
+        http-server.authentication.oauth2.refresh-tokens: "true"
     config:
       resources:
         cpu: { min: 250m, max: "1" }

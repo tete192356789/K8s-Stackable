@@ -1,0 +1,100 @@
+# Authentication ของ Trino — ใช้ 2 แบบพร้อมกัน
+#
+#   trino-users (static)  password ของ service user จาก OpenBao secret/trino/users (key = username, value = password)
+#                         ใช้กับ CLI / JDBC / Python / Superset / Airflow / Cockpit (Basic auth ผ่าน HTTPS :8443)
+#                         แก้ password ใน OpenBao แล้ว Trino โหลดใหม่เอง (hot-reload)
+#   keycloak (oidc)       Web UI ของ Trino — operator ตั้ง web-ui.authentication.type=oauth2 (login ผ่าน Keycloak เท่านั้น)
+#                         client "trino" ใน realm platform (มีอยู่แล้วจาก realm import)
+#
+# AuthenticationClass เป็น cluster-scoped
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: trino-users
+spec:
+  provider:
+    static:
+      userCredentialsSecret:
+        name: trino-users
+---
+apiVersion: authentication.stackable.tech/v1alpha1
+kind: AuthenticationClass
+metadata:
+  name: keycloak
+spec:
+  provider:
+    oidc:
+      hostname: keycloak.172.19.10.62.sslip.io
+      port: 443
+      rootPath: /realms/platform
+      scopes: [openid, email, profile]
+      principalClaim: preferred_username           # ชื่อ user ใน Trino = username ใน Keycloak
+      providerHint: Keycloak
+      tls:
+        verification:
+          server:
+            caCert:
+              secretClass: platform-ca             # gitops/opa/opa.yaml — Trino ต้องตรวจ cert ของ Keycloak (ปิดการตรวจไม่ได้)
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trino-users
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: trino-users
+  dataFrom:
+    - extract: { key: trino/users }                # ทุก key ใน secret/trino/users
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: trino-oidc
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: trino-oidc
+    template:
+      data:
+        clientId: trino
+        clientSecret: "{{ .clientSecret }}"
+  data:
+    - secretKey: clientSecret
+      remoteRef: { key: keycloak/clients, property: trino }
+---
+# Web UI ผ่าน Traefik: https://trino.172.19.10.62.sslip.io → trino-coordinator:8443 (HTTPS)
+# ใช้ IngressRoute เพราะ Service ของ coordinator สร้างโดย operator (ใส่ annotation serversscheme ให้ Ingress ไม่ได้)
+# Traefik → Trino ข้ามการตรวจ cert (hop ภายใน cluster, PoC) — cert ของ Trino ออกโดย CA ของ secret-operator
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: trino
+  namespace: data-platform
+spec:
+  insecureSkipVerify: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: trino
+  namespace: data-platform
+spec:
+  entryPoints: [websecure]
+  routes:
+    - kind: Rule
+      match: Host(`trino.172.19.10.62.sslip.io`)
+      services:
+        - name: trino-coordinator
+          port: 8443
+          scheme: https
+          serversTransport: trino
+  tls: {}                                          # cert wildcard ค่าเริ่มต้นของ Traefik (TLSStore default)
