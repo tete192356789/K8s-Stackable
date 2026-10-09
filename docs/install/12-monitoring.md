@@ -92,8 +92,8 @@ kubectl describe nodes | grep -E '^Name:|^  memory'
 ```bash
 type bao >/dev/null 2>&1 || bao() { kubectl -n openbao exec -i openbao-0 -- env BAO_TOKEN="$(jq -r .root_token /root/K8S-Stackable/openbao/init-keys.json)" bao "$@"; }
 
-# admin ภายในของ Grafana (ใช้ตอน SSO เสีย)
-bao kv put secret/grafana/admin admin-user=admin admin-password="$(openssl rand -base64 24 | tr -d '/+=')"
+# admin ภายในของ Grafana (ใช้ตอน SSO เสีย) — ห้ามชื่อ admin: จะชนกับ user "admin" ใน Keycloak
+bao kv put secret/grafana/admin admin-user=grafana-admin admin-password="$(openssl rand -base64 24 | tr -d '/+=')"
 
 # ตรวจ secret ที่ต้องมีอยู่แล้ว
 bao kv get -format=json secret/keycloak/clients | jq -r '.data.data | keys[]'      # ต้องมี grafana
@@ -206,7 +206,7 @@ kill $PF
 3. **Dashboards** → โฟลเดอร์ของ kube-prometheus-stack เช่น `Kubernetes / Compute Resources / Namespace (Pods)` → เลือก namespace `data-platform`
 4. **Explore** → datasource **Loki** → query `{namespace="data-platform", container="trino"}`
 
-admin ภายใน (กรณี SSO เสีย): user `admin`, password จาก `bao kv get -field=admin-password secret/grafana/admin`
+admin ภายใน (กรณี SSO เสีย): user `grafana-admin`, password จาก `bao kv get -field=admin-password secret/grafana/admin`
 
 ---
 
@@ -229,6 +229,7 @@ admin ภายใน (กรณี SSO เสีย): user `admin`, password �
 | Application`monitoring` ค้าง, ExternalSecret `SecretSyncedError`                                    | ยังไม่มี`secret/grafana/admin` หรือ key ผิดชื่อ                 | ขั้นที่ 1 — key ต้องเป็น`admin-user`, `admin-password`                                                                                                              |
 | Grafana pod`CreateContainerConfigError`                                                                   | Secret`grafana-admin` / `grafana-oidc` ยังไม่ถูกสร้าง              | `kubectl -n monitoring get externalsecret` แล้วแก้ตามข้อบน                                                                                                             |
 | Grafana login แล้ว`Login failed` / log `x509: certificate signed by unknown authority`              | Grafana ไม่เชื่อ cert ของ Keycloak                                        | ตรวจ`kubectl -n monitoring get certificate grafana-ca-trust` (READY) และ `kubectl -n monitoring exec deploy/kube-prometheus-stack-grafana -c grafana -- ls /etc/platform-ca` |
+| Login ด้วย Keycloak แล้ว `User sync failed`, log `Failed to create user` `error="user not found"` | username / email ของ user ใน Keycloak ซ้ำกับ user ภายในของ Grafana (เช่น `admin`) — Grafana ไม่ผูกให้เองเพราะจะเปิดช่องให้ยึดบัญชีได้ (log บอก `user not found` แต่จริง ๆ คือชื่อซ้ำ) | ตั้ง admin ภายในเป็น `grafana-admin`: `bao kv patch secret/grafana/admin admin-user=grafana-admin` → `kubectl -n monitoring annotate externalsecret grafana-admin force-sync=$(date +%s) --overwrite` → `kubectl -n monitoring rollout restart deploy/kube-prometheus-stack-grafana` (ไม่มี persistence → DB สร้างใหม่) |
 | Keycloak`Invalid parameter: redirect_uri`                                                                 | redirect URI ของ client`grafana` ไม่ตรง                                   | ใน Keycloak client`grafana` ต้องมี `https://grafana.172.19.10.62.sslip.io/*`                                                                                                |
 | login ได้แต่ role เป็น Viewer ทุกคน                                                          | token ไม่มี claim`groups`                                                     | ตรวจ mapper`groups` ของ client `grafana` (Full group path: Off)                                                                                                              |
 | `loki-0` CrashLoop, log `NoCredentialProviders` / `AccessDenied` / `NoSuchBucket`                   | key S3 ไม่ถูกส่งเข้า หรือไม่มี bucket`loki`                  | `kubectl -n monitoring get secret loki-s3`, ตรวจ bucket ในขั้นที่ 1                                                                                                      |
