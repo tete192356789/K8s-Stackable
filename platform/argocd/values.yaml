@@ -52,9 +52,10 @@ applicationSet:
   replicas: 0
 
 controller:
+  # 512Mi ไม่พอเมื่อมี ~20 app (kube-prometheus-stack มี resource หลายร้อยตัว) → OOMKilled วนตั้งแต่ขั้นที่ 12
   resources:
-    requests: { cpu: 100m, memory: 256Mi }
-    limits: { memory: 512Mi }
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1536Mi }
 
 repoServer:
   resources:

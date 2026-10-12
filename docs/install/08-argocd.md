@@ -162,6 +162,7 @@ kubectl -n argocd logs deploy/argocd-server --tail=100 | grep -iE 'oidc|x509|key
 | Keycloak ขึ้น `Invalid parameter: redirect_uri` | redirect URI ของ client `argocd` ไม่ตรง | ใน Keycloak: client `argocd` → Valid redirect URIs ต้องมี `https://argocd.172.19.10.62.sslip.io/*` |
 | Login ได้แต่ทุกคนเป็น readonly (รวม `poc-admin`) | ไม่มี claim `groups` หรือ user ไม่อยู่ใน group | User Info ใน Argo CD ดู Groups; ใน Keycloak ตรวจ mapper `groups` ของ client `argocd` และ group ของ user |
 | Login แล้ว `failed to get token: oauth2: "unauthorized_client"` | client secret ไม่ตรงกับใน Keycloak | ค่าใน OpenBao `secret/keycloak/clients` (argocd) ต้องตรงกับ Credentials ของ client `argocd` ใน Keycloak |
+| app ค้าง `OutOfSync` / operation `Running` ไม่มีข้อความ, `argocd-application-controller-0` `CrashLoopBackOff` (`OOMKilled`) | controller ใช้ RAM เกิน limit (โตตามจำนวน app / resource) | เพิ่ม `controller.resources.limits.memory` ใน `values.yaml` แล้ว `helm upgrade` (ขั้นที่ 6.2) — PoC ใช้ 1536Mi |
 | `helm install` error ว่ามี CRD / ClusterRole ของ Argo อยู่แล้ว | Argo CD / Argo Workflows ตัวเก่าจาก stack เดิมทิ้งไว้ | `kubectl get crd,clusterrole,clusterrolebinding -o name \| grep -i argo` แล้วลบของเก่า |
 
 ดู log
