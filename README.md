@@ -36,7 +36,7 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 12 | Prometheus + Alertmanager + Grafana (SSO), Loki, Vector | 92.1.1 (chart) / 3.7.8 / 0.59.0 | [12-monitoring.md](docs/install/12-monitoring.md) | ✅ |
 | 13 | Trino SSO (Keycloak) + authorization with OPA | OPA 1.16.2 / 26.7.0 | [13-trino-sso-opa.md](docs/install/13-trino-sso-opa.md) | ✅ |
 | 14 | Superset (Keycloak SSO, queries Trino as the logged-in user) | 6.1.0 | [14-superset.md](docs/install/14-superset.md) | ✅ |
-| 15 | Airflow | 26.7.0 | — | |
+| 15 | Airflow (KubernetesExecutor, DAGs via git-sync, task logs on S3) | 3.2.2 | [15-airflow.md](docs/install/15-airflow.md) | 🔄 |
 | opt | Stackable Cockpit v2 (experimental web SQL editor for Trino) | 0.0.0-dev | [optional-cockpit.md](docs/install/optional-cockpit.md) | 🔄 |
 
 Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo CD syncs everything from `gitops/` (App-of-Apps, ordered with sync waves).
@@ -55,6 +55,7 @@ gitops/               Argo CD App-of-Apps (root.yaml) and the manifests it syncs
 scripts/              prepull-images.sh (pull images and copy them to the workers), clean-k8s.sh (wipe the previous cluster)
 docs/install/         Step-by-step install guides
 docs/design/          Design notes and decisions
+dags/                 Airflow DAGs (pulled by git-sync)
 ```
 
 On the control-plane node the files live under `/root/K8S-Stackable/<service>/`. Each guide says which files to copy there and which machine each command runs on.

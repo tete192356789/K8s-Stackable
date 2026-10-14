@@ -41,3 +41,8 @@ spec:
         login: true
         passwordSecret:
           name: pg-role-superset
+      - name: airflow
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-airflow

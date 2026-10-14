@@ -1,0 +1,37 @@
+# Role + database ของ Airflow บน pg-platform
+# password อยู่ใน OpenBao: secret/postgres/airflow (username, password)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-airflow
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: pg-role-airflow
+    template:
+      type: kubernetes.io/basic-auth
+      metadata:
+        labels:
+          cnpg.io/reload: "true"
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/airflow, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/airflow, property: password }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: airflow
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  name: airflow
+  owner: airflow
+  cluster:
+    name: pg-platform

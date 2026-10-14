@@ -1,0 +1,199 @@
+# Apache Airflow 3.2.2 (Stackable 26.7.0) — ตั้งเวลารันงาน (ETL) — PoC
+#
+#   ผู้ใช้ ──HTTPS──▶ Traefik (airflow.172.19.10.62.sslip.io) ──HTTP :8080──▶ airflow-webserver ──OIDC──▶ Keycloak
+#   airflow-scheduler (+ dag-processor ในตัว) ── git-sync: dags/ จาก repo นี้ (ดึงทุก 30 วินาที)
+#        └─ KubernetesExecutor: สร้าง pod ใหม่ต่อ 1 task (ไม่มี Redis / Celery worker ค้างไว้ — ประหยัด RAM)
+#   metadata ──▶ pg-platform (db airflow)
+#   task log ──▶ SeaweedFS s3://airflow-logs/ (HTTP ภายใน cluster — pod ของ task หายไปแล้วยังดู log ได้)
+#   Trino ──▶ connection trino_default (service user airflow, HTTPS :8443)
+#
+#   secret ที่ operator สร้างให้เอง (ไม่อยู่ใน Git — ห้ามลบ): airflow-internal-secret, airflow-jwt-secret,
+#     airflow-fernet-key (ใช้เข้ารหัส connection / variable ใน DB)
+apiVersion: airflow.stackable.tech/v1alpha2
+kind: AirflowCluster
+metadata:
+  name: airflow
+  namespace: data-platform
+spec:
+  image:
+    productVersion: 3.2.2
+  clusterConfig:
+    loadExamples: false
+    credentialsSecretName: airflow-admin        # adminUser.* — admin ภายใน (หน้า login เปิดแค่ OIDC)
+    metadataDatabase:
+      postgresql:
+        host: pg-platform-rw.database.svc.cluster.local
+        port: 5432
+        database: airflow
+        credentialsSecretName: airflow-db       # username, password (ตัวอักษร + ตัวเลขเท่านั้น)
+    authentication:
+      - authenticationClass: keycloak           # ตัวเดียวกับ Trino / Superset (gitops/trino/auth.yaml)
+        oidc:
+          clientCredentialsSecret: airflow-oidc
+        userRegistration: true
+        userRegistrationRole: Public            # role พื้นฐาน — สิทธิ์จริงมาจาก AUTH_ROLES_MAPPING
+        syncRolesAt: Login
+    dagsGitSync:
+      - repo: https://github.com/tete192356789/K8s-Stackable.git
+        branch: main
+        gitFolder: dags
+        depth: 1
+        wait: 30s
+  webservers:
+    envOverrides: &env
+      # อยู่หลัง Traefik: ใช้ X-Forwarded-* สร้าง redirect URI ของ OIDC (https://airflow.…/auth/oauth-authorized/keycloak)
+      AIRFLOW__FAB__ENABLE_PROXY_FIX: "True"
+      AIRFLOW__API__BASE_URL: https://airflow.172.19.10.62.sslip.io/
+      # task log → SeaweedFS (key จาก secret airflow-env: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+      AIRFLOW__LOGGING__REMOTE_LOGGING: "True"
+      AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: s3://airflow-logs/
+      AIRFLOW__LOGGING__REMOTE_LOG_CONN_ID: s3_logs
+      AIRFLOW_CONN_S3_LOGS: '{"conn_type": "aws", "extra": {"endpoint_url": "http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333", "region_name": "us-east-1"}}'
+    podOverrides:
+      spec:
+        containers:
+          - name: airflow
+            envFrom: [{ secretRef: { name: airflow-env } }]
+    configOverrides:
+      webserver_config.py:                      # ค่าเป็น Python expression
+        # group ใน Keycloak (claim groups) → role ใน Airflow
+        AUTH_ROLES_MAPPING: '{"platform-admins": ["Admin"], "data-engineers": ["Op"], "analysts": ["Viewer"]}'
+    config:
+      resources:
+        cpu: { min: 250m, max: "1" }
+        memory: { limit: 2Gi }                  # ค่าเริ่มต้น 3Gi
+    roleGroups:
+      default:
+        replicas: 1
+  schedulers:
+    envOverrides: *env
+    podOverrides:
+      spec:
+        containers:
+          - name: airflow
+            envFrom: [{ secretRef: { name: airflow-env } }]
+    config:
+      resources:
+        cpu: { min: 250m, max: "1" }
+        memory: { limit: 2Gi }                  # ค่าเริ่มต้น 1.5Gi — เพิ่มเพราะรัน dag-processor ในตัว
+    roleGroups:
+      default:
+        replicas: 1
+  kubernetesExecutors:                          # pod ของ task (container ชื่อ "base" ตามที่ Airflow บังคับ)
+    envOverrides: *env
+    podOverrides:
+      spec:
+        containers:
+          - name: base
+            envFrom: [{ secretRef: { name: airflow-env } }]
+    config:
+      resources:
+        cpu: { min: 100m, max: "1" }
+        memory: { limit: 1Gi }                  # ค่าเริ่มต้น 3Gi ต่อ task
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: airflow-admin
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: airflow-admin
+    template:
+      data:
+        adminUser.username: airflow-admin
+        adminUser.firstname: Airflow
+        adminUser.lastname: Admin
+        adminUser.email: airflow-admin@example.local
+        adminUser.password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: airflow/admin, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: airflow-db
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: airflow-db
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/airflow, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/airflow, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: airflow-oidc
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: airflow-oidc
+    template:
+      data:
+        clientId: airflow
+        clientSecret: "{{ .clientSecret }}"
+  data:
+    - secretKey: clientSecret
+      remoteRef: { key: keycloak/clients, property: airflow }
+---
+# env ที่เป็นความลับ — ใส่ให้ทุก pod (webserver, scheduler, pod ของ task) ด้วย envFrom
+#   AWS_*                       key S3 ของ SeaweedFS สำหรับ task log
+#   AIRFLOW_CONN_TRINO_DEFAULT  connection "trino_default" (service user airflow) — verify: false = cert ของ Trino ออกโดย CA ของ secret-operator (PoC)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: airflow-env
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: airflow-env
+    template:
+      data:
+        AWS_ACCESS_KEY_ID: "{{ .s3AccessKey }}"
+        AWS_SECRET_ACCESS_KEY: "{{ .s3SecretKey }}"
+        AIRFLOW_CONN_TRINO_DEFAULT: '{"conn_type": "trino", "host": "trino-coordinator.data-platform.svc.cluster.local", "port": 8443, "login": "airflow", "password": "{{ .trinoPassword }}", "extra": {"protocol": "https", "verify": false}}'
+  data:
+    - secretKey: s3AccessKey
+      remoteRef: { key: seaweedfs/s3-admin, property: access_key }
+    - secretKey: s3SecretKey
+      remoteRef: { key: seaweedfs/s3-admin, property: secret_key }
+    - secretKey: trinoPassword
+      remoteRef: { key: trino/users, property: airflow }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: airflow
+  namespace: data-platform
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: airflow.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: airflow-webserver, port: { number: 8080 } }

@@ -1,0 +1,25 @@
+# wave 56: Airflow 3.2.2 (namespace data-platform) — ใช้ pg-platform (10), Trino (40), Keycloak (50)
+# ต้องมีก่อน: OpenBao secret/postgres/airflow, secret/airflow/admin, secret/keycloak/clients (airflow),
+#            secret/trino/users (airflow), secret/seaweedfs/s3-admin — ดู docs/install/15-airflow.md
+# DAG อยู่ที่ dags/ ของ repo นี้ (git-sync ดึงเอง ไม่ต้องผ่าน Argo CD)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: airflow
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "56"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/airflow
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
