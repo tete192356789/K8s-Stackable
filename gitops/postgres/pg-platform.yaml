@@ -36,3 +36,8 @@ spec:
         login: true
         passwordSecret:
           name: pg-role-keycloak
+      - name: superset
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-superset

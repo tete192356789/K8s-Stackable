@@ -1,0 +1,24 @@
+# wave 55: Superset 6.1.0 (namespace data-platform) — ใช้ pg-platform (10), Trino (40), Keycloak (50)
+# ต้องมีก่อน: OpenBao secret/postgres/superset, secret/superset/admin, secret/keycloak/clients (superset)
+#            (ดู docs/install/14-superset.md)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: superset
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "55"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/superset
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: data-platform
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

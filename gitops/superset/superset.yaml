@@ -1,0 +1,129 @@
+# Apache Superset 6.1.0 (Stackable 26.7.0) — dashboard + SQL Lab — PoC
+#
+#   ผู้ใช้ ──HTTPS──▶ Traefik (superset.172.19.10.62.sslip.io) ──HTTP :8088──▶ superset-node
+#                                                                   ├─ OIDC ──▶ Keycloak (client superset)
+#                                                                   ├─ metadata ──▶ pg-platform (db superset)
+#                                                                   └─ SQL ──▶ Trino :8443 (user superset + impersonate คนที่ login)
+#
+#   login: Keycloak เท่านั้น (AuthenticationClass "keycloak" ตัวเดียวกับ Trino — gitops/trino/auth.yaml)
+#   role ใน Superset มาจาก group ใน Keycloak (AUTH_ROLES_MAPPING) — sync ทุกครั้งที่ login
+#   SECRET_KEY: operator สร้าง Secret "superset-secret-key" ให้เอง (ไม่อยู่ใน Git — ห้ามลบ: ใช้เข้ารหัส password ของ database ที่เก็บใน Superset)
+#   connection ไป Trino เพิ่มใน UI (ยังไม่มี CRD) — ดู docs/install/14-superset.md
+apiVersion: superset.stackable.tech/v1alpha1
+kind: SupersetCluster
+metadata:
+  name: superset
+  namespace: data-platform
+spec:
+  image:
+    productVersion: 6.1.0
+  clusterConfig:
+    credentialsSecret: superset-admin           # adminUser.* — admin ภายใน (ใช้ไม่ได้ผ่านหน้า login เพราะเปิดแค่ OIDC)
+    metadataDatabase:
+      postgresql:
+        host: pg-platform-rw.database.svc.cluster.local
+        port: 5432
+        database: superset
+        credentialsSecretName: superset-db      # username, password (ต้องไม่มีอักขระพิเศษ — operator ไม่ escape ใน URI)
+    authentication:
+      - authenticationClass: keycloak
+        oidc:
+          clientCredentialsSecret: superset-oidc
+        userRegistration: true                  # สร้าง user ใน Superset ตอน login ครั้งแรก
+        userRegistrationRole: Public            # role พื้นฐาน (ว่าง) — สิทธิ์จริงมาจาก AUTH_ROLES_MAPPING
+        syncRolesAt: Login                      # ย้าย group ใน Keycloak แล้ว role เปลี่ยนตอน login ครั้งถัดไป
+  nodes:
+    configOverrides:
+      superset_config.py:                       # ค่าเป็น Python expression
+        # อยู่หลัง Traefik: ใช้ X-Forwarded-Proto/Host สร้าง redirect URI ของ OIDC ให้เป็น https://superset.…
+        ENABLE_PROXY_FIX: "True"
+        # group ใน Keycloak (claim groups, ไม่มี / นำหน้า) → role ใน Superset
+        #   Admin/Alpha เข้าถึงทุก database เอง; Gamma ต้องได้สิทธิ์ database จาก role "trino_access"
+        #   (สร้างใน UI หลังเพิ่ม database Trino — role ที่ยังไม่มีจะถูกข้าม)
+        AUTH_ROLES_MAPPING: '{"platform-admins": ["Admin"], "data-engineers": ["Alpha", "sql_lab"], "analysts": ["Gamma", "sql_lab", "trino_access"]}'
+    config:
+      resources:
+        cpu: { min: 200m, max: "1" }
+        memory: { limit: 1536Mi }               # ค่าเริ่มต้น 2Gi — ลดตามงบ RAM ของ PoC
+    roleGroups:
+      default:
+        replicas: 1
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: superset-admin
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: superset-admin
+    template:
+      data:
+        adminUser.username: superset-admin
+        adminUser.firstname: Superset
+        adminUser.lastname: Admin
+        adminUser.email: superset-admin@example.local
+        adminUser.password: "{{ .password }}"
+  data:
+    - secretKey: password
+      remoteRef: { key: superset/admin, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: superset-db
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: superset-db
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/superset, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/superset, property: password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: superset-oidc
+  namespace: data-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: superset-oidc
+    template:
+      data:
+        clientId: superset
+        clientSecret: "{{ .clientSecret }}"
+  data:
+    - secretKey: clientSecret
+      remoteRef: { key: keycloak/clients, property: superset }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: superset
+  namespace: data-platform
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: superset.172.19.10.62.sslip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: superset-node, port: { number: 8088 } }
