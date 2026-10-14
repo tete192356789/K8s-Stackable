@@ -141,6 +141,20 @@ kubectl -n data-platform run trino-auth-test --rm -i --image=curlimages/curl --r
 
 **5.2 ทดสอบสิทธิ์ด้วย Python** (Mac — เปิด tunnel 18443 ค้างไว้ตาม [10-trino.md](10-trino.md) ขั้นที่ 4.1)
 
+> ต้องมี user `poc-engineer` (group `data-engineers`) และ `poc-analyst` (group `analysts`) ใน realm `platform` ก่อน — ถ้ายังไม่มีให้สร้างตาม [11-keycloak.md](11-keycloak.md) ขั้นที่ 5.3 (ทดสอบผ่าน impersonation ไม่ต้องตั้ง password)
+> user ที่ไม่มีใน Keycloak = ไม่มี group → ได้ `Cannot access catalog iceberg` (ถูกต้องตามสิทธิ์ ไม่ใช่ bug)
+
+ตรวจว่า user-info-fetcher เห็น user และ group ก่อน (master):
+
+```bash
+P=$(kubectl -n data-platform get pod -l app.kubernetes.io/name=opa -o name | head -1)
+for u in poc-engineer poc-analyst; do
+  kubectl -n data-platform exec $P -c user-info-fetcher -- curl -s -X POST http://127.0.0.1:9476/user \
+    -H 'Content-Type: application/json' -d "{\"username\":\"$u\"}"; echo
+done
+# ต้องได้ "groups":["/data-engineers"] และ "groups":["/analysts"] — ถ้าได้ "unable to find user" = ยังไม่ได้สร้าง user
+```
+
 ดึง password ของ `trino-admin` และ `superset` (master)
 
 ```bash
@@ -148,8 +162,9 @@ bao kv get -field=trino-admin secret/trino/users; bao kv get -field=superset sec
 ```
 
 ```bash
-read -rsp 'trino-admin password: ' TRINO_ADMIN_PW; echo; export TRINO_ADMIN_PW
-read -rsp 'superset password: ' TRINO_SUPERSET_PW; echo; export TRINO_SUPERSET_PW
+# Mac ใช้ zsh: read -rs "VAR?prompt" (bash ใช้ read -rsp 'prompt' VAR)
+read -rs "TRINO_ADMIN_PW?trino-admin password: "; echo; export TRINO_ADMIN_PW
+read -rs "TRINO_SUPERSET_PW?superset password: "; echo; export TRINO_SUPERSET_PW
 python - <<'EOF'
 import os
 from trino.dbapi import connect

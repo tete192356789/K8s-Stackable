@@ -34,7 +34,7 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 10 | Trino (+ Iceberg); S3 over TLS via Traefik | 481 | [10-trino.md](docs/install/10-trino.md) | ✅ |
 | 11 | Keycloak (operator, realm `platform`) | 26.7.4 | [11-keycloak.md](docs/install/11-keycloak.md) | ✅ |
 | 12 | Prometheus + Alertmanager + Grafana (SSO), Loki, Vector | 92.1.1 (chart) / 3.7.8 / 0.59.0 | [12-monitoring.md](docs/install/12-monitoring.md) | ✅ |
-| 13 | Trino SSO (Keycloak) + authorization with OPA | OPA 1.16.2 / 26.7.0 | [13-trino-sso-opa.md](docs/install/13-trino-sso-opa.md) | 🔄 |
+| 13 | Trino SSO (Keycloak) + authorization with OPA | OPA 1.16.2 / 26.7.0 | [13-trino-sso-opa.md](docs/install/13-trino-sso-opa.md) | ✅ |
 | 14 | Superset, Airflow | 26.7.0 | — | |
 | opt | Stackable Cockpit v2 (experimental web SQL editor for Trino) | 0.0.0-dev | [optional-cockpit.md](docs/install/optional-cockpit.md) | 🔄 |
 
