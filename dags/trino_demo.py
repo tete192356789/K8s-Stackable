@@ -17,6 +17,7 @@ from airflow.sdk import dag, task
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,  # DAG ใหม่ถูก pause ไว้ก่อนเป็นค่าเริ่มต้น — ตัวอย่างนี้เปิดเลย
     tags=["poc", "trino"],
 )
 def trino_demo():

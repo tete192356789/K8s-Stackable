@@ -117,7 +117,8 @@ kubectl -n data-platform logs airflow-scheduler-default-0 -c airflow --tail=30
 
 ## ขั้นที่ 5: รัน DAG ทดสอบ
 
-1. เปิด `trino_demo` → ปุ่ม **Trigger** (▶)
+1. เปิด `trino_demo` → ตรวจว่าสวิตช์ข้างชื่อ DAG เป็นสีเขียว (**unpause**) → ปุ่ม **Trigger** (▶)
+   > DAG ใหม่ถูก pause เป็นค่าเริ่มต้น — trigger ตอน pause อยู่ task แรกอาจรัน แต่ task ถัดไปค้าง `No Status`
 2. ดูหน้า Grid — task `create_table` และ `load` ต้องเป็นสีเขียว (แต่ละ task สร้าง pod ใหม่ ~20–40 วินาที)
 3. คลิก task `load` → **Logs** → ต้องเห็น `Trino user: airflow` และ `inserted run_id=...`
 4. ระหว่างรัน ดู pod ของ task (master):
@@ -151,6 +152,7 @@ connection ที่ใช้ได้ทันที: `trino_default` (Trino, u
 | login แล้วได้ role `Public` อย่างเดียว | ไม่มี claim `groups` ใน userinfo | mapper `groups` ของ client `airflow`: Add to userinfo On, Full group path Off |
 | ไม่เห็น DAG | git-sync ดึงไม่ได้ / ยังไม่ push `dags/` | `kubectl -n data-platform logs airflow-scheduler-default-0 -c git-sync-0 --tail=20` |
 | DAG มี error `Broken DAG` | import ไม่ผ่าน | ข้อความ error อยู่บนหน้า Dags; ทดสอบด้วย `kubectl -n data-platform exec airflow-scheduler-default-0 -c airflow -- airflow dags list-import-errors` |
+| task ถัดไปค้าง `No Status` (task แรกผ่านแล้ว) | DAG ถูก pause (`airflow tasks failed-deps …` บอก `Task's DAG … is paused`) | กดสวิตช์ unpause ข้างชื่อ DAG — run เดิมเดินต่อเอง |
 | task ค้าง `queued` / pod `Pending` | RAM ของ node ไม่พอ | `kubectl -n data-platform describe pod <pod ของ task>` |
 | task error `Access Denied` จาก Trino | OPA ไม่ให้สิทธิ์ `airflow` | `airflow` เขียนได้เฉพาะ catalog `iceberg` (`gitops/opa/trino_policies.rego`) |
 | Logs ของ task ว่าง / error `NoSuchBucket` / `AccessDenied` | remote logging ไป S3 ไม่ได้ | `kubectl -n data-platform get secret airflow-env`, bucket `airflow-logs` ต้องมี |
