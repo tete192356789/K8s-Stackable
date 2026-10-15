@@ -43,6 +43,10 @@ Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo 
 
 The install guides under `docs/install/` are written in Thai.
 
+## Testing
+
+- [End-to-end test](docs/test/e2e-test.md) (Thai): Airflow → Trino/OPA → Iceberg → Superset, with access checks per Keycloak group and Grafana/Loki checks. Uses the `sales_pipeline` DAG.
+
 ## Design notes
 
 - [Iceberg catalog: Hive Metastore 4 vs Spark / PyIceberg](docs/design/iceberg-catalog-hive4.md) (Thai). Hive Metastore 4.0.1+ breaks Iceberg `HiveCatalog` clients (Spark, PyIceberg). This note covers the options: Hive 4.0.0, two metastores, or an Iceberg REST catalog.

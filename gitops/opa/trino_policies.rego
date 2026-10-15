@@ -9,7 +9,7 @@ package trino_policies
 # service user (static password ใน OpenBao secret/trino/users) ไม่อยู่ใน Keycloak → ใช้ rule ตามชื่อ user
 #   trino-admin  admin สำหรับ CLI / script
 #   superset     impersonate ผู้ใช้ที่ login Superset (ขั้นที่ 13)
-#   airflow      งาน ETL — อ่าน/เขียน iceberg
+#   airflow      งาน ETL — อ่าน/เขียน iceberg, อ่าน tpch (ข้อมูลตัวอย่าง)
 #   cockpit      Stackable Cockpit — อ่านอย่างเดียว (ยังปิด impersonation เพราะ bug cockpit#371)
 
 admins := `trino-admin`
@@ -20,6 +20,7 @@ policies := {
 		{"group": "/platform-admins", "allow": "all"},
 		{"group": "/data-engineers", "catalog": "iceberg", "allow": "all"},
 		{"user": "airflow", "catalog": "iceberg", "allow": "all"},
+		{"user": "airflow", "catalog": "tpch", "allow": "read-only"},
 		{"catalog": "system", "allow": "read-only"},
 		{"group": "/data-engineers", "allow": "read-only"},
 		{"group": "/analysts", "allow": "read-only"},
