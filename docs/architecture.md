@@ -18,37 +18,37 @@ Diagrams are Mermaid and render on GitHub.
 flowchart TB
     user(["Users<br/>browser / Python / DBeaver"])
 
-    subgraph edge["Entry · namespace traefik / metallb-system"]
+    subgraph entry["Entry: traefik, metallb-system"]
         lb["MetalLB<br/>node IPs .62 .63 .64"]
         traefik["Traefik 3.7<br/>TLS: wildcard cert from internal CA"]
     end
 
-    subgraph apps["Applications · data-platform"]
+    subgraph appsg["Applications: data-platform"]
         superset["Superset 6.1<br/>dashboards, SQL Lab"]
         airflow["Airflow 3.2<br/>webserver + scheduler<br/>KubernetesExecutor"]
         cockpit["Stackable Cockpit<br/>(experimental)"]
     end
 
-    subgraph query["Query and catalog · data-platform"]
+    subgraph queryg["Query and catalog: data-platform"]
         trino["Trino 481<br/>coordinator + worker"]
         opa["OPA 1.16<br/>+ user-info-fetcher"]
         hive["Hive Metastore 4.2<br/>Thrift :9083 + Iceberg REST :9001"]
     end
 
-    subgraph storage["Storage"]
-        s3[("SeaweedFS 4.47 · S3<br/>warehouse · loki · airflow-logs · backups")]
-        pg[("PostgreSQL 17 · CNPG<br/>pg-platform: keycloak, hive,<br/>superset, airflow")]
+    subgraph storageg["Storage"]
+        s3[("SeaweedFS 4.47 S3<br/>warehouse · loki · airflow-logs · backups")]
+        pg[("PostgreSQL 17 CNPG<br/>pg-platform: keycloak, hive,<br/>superset, airflow")]
         longhorn[("Longhorn 1.12<br/>block storage (PVCs)")]
     end
 
-    subgraph security["Identity and secrets"]
+    subgraph securityg["Identity and secrets"]
         keycloak["Keycloak 26.7<br/>realm platform"]
         openbao["OpenBao 2.7<br/>KV secret/"]
         eso["External Secrets 2.11"]
         certm["cert-manager 1.21<br/>ClusterIssuer platform-ca"]
     end
 
-    subgraph ops["Operations"]
+    subgraph opsg["Operations"]
         argocd["Argo CD 3.5<br/>App-of-Apps"]
         prom["Prometheus + Alertmanager"]
         grafana["Grafana 13"]
@@ -79,12 +79,13 @@ flowchart TB
 
     superset & airflow & grafana & argocd & trino -.->|"OIDC login"| keycloak
 
-    openbao --> eso -->|"Kubernetes Secrets"| apps & query
+    openbao --> eso
+    eso -->|"Kubernetes Secrets"| superset & airflow & trino & hive
     certm -.->|"certificates"| traefik
 
     github -->|"manifests"| argocd
     github -->|"DAGs (git-sync)"| airflow
-    argocd -->|"sync"| apps & query
+    argocd -->|"sync"| superset & airflow & trino & hive
 
     vector -->|"pod logs"| loki --> s3
     prom -->|"scrape"| trino & pg & longhorn
