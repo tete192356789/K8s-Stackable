@@ -43,6 +43,10 @@ Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo 
 
 The install guides under `docs/install/` are written in Thai.
 
+## Architecture
+
+[docs/architecture.md](docs/architecture.md): diagrams of the components, the data flow of one pipeline run, authentication and authorization, secrets, GitOps waves and the entry points.
+
 ## Testing
 
 - [End-to-end test](docs/test/e2e-test.md) (Thai): Airflow → Trino/OPA → Iceberg → Superset, with access checks per Keycloak group and Grafana/Loki checks. Uses the `sales_pipeline` DAG.

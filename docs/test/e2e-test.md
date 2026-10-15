@@ -174,4 +174,4 @@ sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="data-platform", 
 
 | วันที่ | ผู้ทดสอบ | ผ่าน | ไม่ผ่าน / หมายเหตุ |
 |---|---|---|---|
-| | | | |
+| 2026-10-15 | ทีม PoC | 1–11 ทั้งหมด | — |
