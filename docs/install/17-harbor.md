@@ -196,6 +196,8 @@ docker push harbor.172.19.10.62.sslip.io/platform/busybox:test
 | login แล้วไม่เห็น Administration | ไม่มี claim `groups` / ไม่อยู่ `platform-admins` | mapper `groups` ของ client `harbor` (ขั้นที่ 1) |
 | `docker push` error `unauthorized` | ใช้ password ของ Keycloak แทน CLI secret | ใช้ CLI secret จาก User Profile |
 | `docker push` ค้าง / `blob upload unknown` | registry เขียน S3 ไม่ได้ | `kubectl -n harbor logs deploy/harbor-registry -c registry --tail=30`; bucket `harbor` ต้องมี |
+| script ขึ้น `พบ section registry มากกว่า 1 อัน` / `table registry already exists` | script เวอร์ชันแรกต่อ section ซ้ำ (containerd 2 ใช้ `'` ในชื่อ section) | `sed -i '/^\\[plugins\\."io\\.containerd\\.cri\\.v1\\.images"\\.registry\\]$/,+1d' /etc/containerd/config.toml` แล้ว `containerd config dump >/dev/null` ต้องไม่ error — **ห้าม restart containerd ก่อนแก้** |
+| `crictl pull` ขึ้น `Image is up to date` | ข้อความปกติเมื่อดึงสำเร็จ — ไม่ได้บอกว่าดึงจากไหน | ดูใน Harbor UI ว่า image โผล่ใน project proxy cache หรือไม่ |
 | `crictl pull` ไม่ผ่าน Harbor (ไม่โผล่ใน project) | containerd ไม่อ่าน `config_path` | `containerd config dump \| grep -A2 'cri.v1.images".registry'` ต้องเห็น `config_path = "/etc/containerd/certs.d"` |
 | `crictl pull` error `x509` | containerd ไม่เชื่อ CA | `/etc/containerd/certs.d/platform-ca.crt` ต้องมี และ `ca = ...` ใน hosts.toml |
 | harbor-core / registry OOMKilled | memory limit ต่ำเกิน | เพิ่ม `resources.limits.memory` ใน `gitops/harbor/values/harbor.yaml` |

@@ -61,11 +61,13 @@ if grep -A3 -E "$SECTION_RE" "$CONFIG" | grep -qE "^[[:space:]]*config_path[[:sp
   echo "config_path ตั้งไว้แล้ว — ไม่ต้อง restart containerd"
   exit 0
 fi
+# ตรวจก่อน backup — ไม่ให้ไฟล์ที่เสียอยู่แล้วกลายเป็น backup ล่าสุด
+if [ "$(grep -cE "$SECTION_RE" "$CONFIG")" -gt 1 ]; then
+  echo "พบ section registry มากกว่า 1 อันใน $CONFIG — แก้ด้วยมือก่อน (ดู docs/install/17-harbor.md)"; exit 1
+fi
+containerd config dump >/dev/null || { echo "$CONFIG เสียอยู่แล้วก่อนแก้ — ไม่ทำต่อ"; exit 1; }
 BACKUP="${CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
 cp -a "$CONFIG" "$BACKUP"
-if [ "$(grep -cE "$SECTION_RE" "$CONFIG")" -gt 1 ]; then
-  echo "พบ section registry มากกว่า 1 อันใน $CONFIG — แก้ด้วยมือก่อน"; exit 1
-fi
 if grep -qE "$SECTION_RE" "$CONFIG"; then
   # มี section อยู่แล้ว: แทน config_path เดิม หรือเพิ่มบรรทัดใต้หัว section
   RE="$SECTION_RE" awk -v path="$CERTS_D" '
