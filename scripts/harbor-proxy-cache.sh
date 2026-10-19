@@ -37,8 +37,9 @@ while read -r name type url; do
     echo "  endpoint id=${reg_id} มีอยู่แล้ว"
   fi
 
-  code=$(api HEAD "/projects?project_name=${name}" | tail -n1)
-  if [ "$code" = 404 ]; then
+  # ใช้ GET (HEAD ทำให้ curl รอ body ที่ไม่มาแล้วล้ม — error 18)
+  exists=$(api GET "/projects?name=${name}" | head -n -1 | jq -r --arg n "$name" '[.[]? | select(.name == $n)] | length')
+  if [ "$exists" = 0 ]; then
     out=$(api POST /projects "{\"project_name\":\"${name}\",\"registry_id\":${reg_id},\"metadata\":{\"public\":\"true\"}}")
     [ "$(tail -n1 <<<"$out")" = 201 ] || { echo "  สร้าง project ไม่ได้: $out"; exit 1; }
     echo "  project ${name} (proxy cache, public) สร้างแล้ว"
