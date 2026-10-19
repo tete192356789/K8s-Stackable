@@ -53,32 +53,33 @@ EOF
 done
 
 # config_path ของ CRI (containerd 2.x, config version 3)
-SECTION='[plugins."io.containerd.cri.v1.images".registry]'
+# containerd 2 เขียนชื่อ section ด้วย ' (เช่น [plugins.'io.containerd.cri.v1.images'.registry]) — รองรับทั้ง ' และ "
+SECTION_RE="^[[:space:]]*\\[plugins\\.['\"]io\\.containerd\\.cri\\.v1\\.images['\"]\\.registry\\][[:space:]]*$"
 grep -qE '^[[:space:]]*version[[:space:]]*=[[:space:]]*3' "$CONFIG" || {
   echo "$CONFIG ไม่ใช่ config version 3 — script นี้รองรับแค่ version 3 (ส่ง head -5 $CONFIG มาตรวจ)"; exit 1; }
-if grep -qE "^[[:space:]]*config_path[[:space:]]*=[[:space:]]*['\"]${CERTS_D}['\"]" "$CONFIG"; then
+if grep -A3 -E "$SECTION_RE" "$CONFIG" | grep -qE "^[[:space:]]*config_path[[:space:]]*=[[:space:]]*['\"]${CERTS_D}['\"]"; then
   echo "config_path ตั้งไว้แล้ว — ไม่ต้อง restart containerd"
   exit 0
 fi
-cp -a "$CONFIG" "${CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
-if grep -qF "$SECTION" "$CONFIG"; then
-  # มี section อยู่แล้ว: แก้ config_path บรรทัดแรกหลัง section (ถ้ามี) หรือเพิ่มต่อจากหัว section
-  awk -v sec="$SECTION" -v path="$CERTS_D" '
-    { t = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t) }
-    t == sec { print; insec=1; next }
-    insec && /^[[:space:]]*\[/ { if (!done) { print "      config_path = \"" path "\""; done=1 } insec=0 }
+BACKUP="${CONFIG}.bak.$(date +%Y%m%d%H%M%S)"
+cp -a "$CONFIG" "$BACKUP"
+if [ "$(grep -cE "$SECTION_RE" "$CONFIG")" -gt 1 ]; then
+  echo "พบ section registry มากกว่า 1 อันใน $CONFIG — แก้ด้วยมือก่อน"; exit 1
+fi
+if grep -qE "$SECTION_RE" "$CONFIG"; then
+  # มี section อยู่แล้ว: แทน config_path เดิม หรือเพิ่มบรรทัดใต้หัว section
+  RE="$SECTION_RE" awk -v path="$CERTS_D" '
+    $0 ~ ENVIRON["RE"] { print; insec=1; next }
+    insec && /^[[:space:]]*\[/ { if (!done) { print "  config_path = \"" path "\""; done=1 } insec=0 }
     insec && /^[[:space:]]*config_path[[:space:]]*=/ { sub(/=.*/, "= \"" path "\""); done=1 }
     { print }
-    END { if (insec && !done) print "      config_path = \"" path "\"" }
+    END { if (insec && !done) print "  config_path = \"" path "\"" }
   ' "$CONFIG" > "${CONFIG}.new" && mv "${CONFIG}.new" "$CONFIG"
 else
-  printf '\n%s\n  config_path = "%s"\n' "$SECTION" "$CERTS_D" >> "$CONFIG"
+  printf '\n%s\n  config_path = "%s"\n' '[plugins."io.containerd.cri.v1.images".registry]' "$CERTS_D" >> "$CONFIG"
 fi
-# section หลักไม่มี (มีแค่ sub-section) → เพิ่ม section ใหม่ท้ายไฟล์
-grep -qE "^[[:space:]]*config_path[[:space:]]*=[[:space:]]*\"${CERTS_D}\"" "$CONFIG" || \
-  printf '\n%s\n  config_path = "%s"\n' "$SECTION" "$CERTS_D" >> "$CONFIG"
-grep -n -A1 -F "$SECTION" "$CONFIG"
-containerd config dump >/dev/null || { echo "config.toml ผิด — คืนค่าจาก ${CONFIG}.bak.*"; exit 1; }
+grep -n -A2 -E "$SECTION_RE" "$CONFIG"
+containerd config dump >/dev/null || { cp -a "$BACKUP" "$CONFIG"; echo "config.toml ผิด — คืนค่าจาก $BACKUP แล้ว (ไม่ได้ restart containerd)"; exit 1; }
 systemctl restart containerd
 sleep 3
 systemctl is-active containerd
