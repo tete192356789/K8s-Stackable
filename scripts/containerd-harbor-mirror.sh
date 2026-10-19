@@ -82,7 +82,16 @@ else
 fi
 grep -n -A2 -E "$SECTION_RE" "$CONFIG"
 containerd config dump >/dev/null || { cp -a "$BACKUP" "$CONFIG"; echo "config.toml ผิด — คืนค่าจาก $BACKUP แล้ว (ไม่ได้ restart containerd)"; exit 1; }
+# inotify: ค่าเริ่มต้นของ Rocky (128 instances) ไม่พอบน node ที่มี pod เยอะ — restart containerd แล้ว CRI plugin
+# โหลดไม่ขึ้น ("failed to create fsnotify watcher: too many open files") → kubelet สั่ง node ไม่ได้
+cat > /etc/sysctl.d/99-inotify.conf <<'SYSCTL'
+fs.inotify.max_user_instances = 8192
+fs.inotify.max_user_watches = 524288
+SYSCTL
+sysctl -q --system
 systemctl restart containerd
-sleep 3
+sleep 5
+crictl info >/dev/null 2>&1 || { echo "!! CRI ไม่ตอบหลัง restart — ดู journalctl -u containerd --since '2 min ago'"; exit 1; }
+echo "CRI OK"
 systemctl is-active containerd
 echo "=== เสร็จ — ทดสอบ: crictl pull docker.io/library/busybox:1.36"
