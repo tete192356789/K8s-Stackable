@@ -38,7 +38,7 @@ A proof of concept of a data platform on Kubernetes built with the [Stackable Da
 | 14 | Superset (Keycloak SSO, queries Trino as the logged-in user) | 6.1.0 | [14-superset.md](docs/install/14-superset.md) | ✅ |
 | 15 | Airflow (KubernetesExecutor, DAGs via git-sync, task logs on S3) | 3.2.2 | [15-airflow.md](docs/install/15-airflow.md) | ✅ |
 | 16 | PostgreSQL backup (CNPG Barman Cloud Plugin → SeaweedFS) | 0.15.1 | — | |
-| 17 | Harbor (image registry + pull-through cache for docker.io, quay.io, ghcr.io, registry.k8s.io, oci.stackable.tech) | 2.15.4 | [17-harbor.md](docs/install/17-harbor.md) | 🔄 |
+| 17 | Harbor (image registry + pull-through cache for docker.io, quay.io, ghcr.io, registry.k8s.io, oci.stackable.tech) | 2.15.4 | [17-harbor.md](docs/install/17-harbor.md) | ✅ |
 | opt | Stackable Cockpit v2 (experimental web SQL editor for Trino) | 0.0.0-dev | [optional-cockpit.md](docs/install/optional-cockpit.md) | 🔄 |
 
 Steps 1–8 are installed with Helm (the bootstrap layer). From step 9 on, Argo CD syncs everything from `gitops/` (App-of-Apps, ordered with sync waves).
