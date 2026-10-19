@@ -46,3 +46,8 @@ spec:
         login: true
         passwordSecret:
           name: pg-role-airflow
+      - name: harbor
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-harbor

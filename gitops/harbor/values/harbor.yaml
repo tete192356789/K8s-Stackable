@@ -1,0 +1,106 @@
+# Harbor 2.15.4 (chart harbor-helm 1.19.4) — PoC: replica เดียว, ไม่มี Trivy / metrics
+#   DB: pg-platform (database harbor) · Redis: Valkey ภายใน · image: SeaweedFS bucket "harbor"
+#   secret ทั้งหมดมาจาก gitops/harbor/secrets.yaml (ExternalSecret) — ไม่ให้ chart สุ่มเอง
+externalURL: https://harbor.172.19.10.62.sslip.io
+
+expose:
+  type: ingress
+  tls:
+    enabled: false                     # TLS จบที่ Traefik (wildcard cert) — chart ไม่ต้องทำ TLS
+  ingress:
+    className: traefik
+    hosts:
+      core: harbor.172.19.10.62.sslip.io
+    annotations:                       # แทนค่าเริ่มต้นของ nginx ทั้งหมด
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+
+caBundleSecretName: harbor-ca-trust    # เชื่อ internal CA (Keycloak, upstream ของ proxy cache)
+
+existingSecretAdminPassword: harbor-secrets
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+existingSecretSecretKey: harbor-secrets      # key "secretKey"
+
+updateStrategy:
+  type: Recreate                       # PVC แบบ RWO ของ jobservice
+
+persistence:
+  enabled: true
+  resourcePolicy: keep
+  persistentVolumeClaim:
+    jobservice:
+      jobLog: { storageClass: longhorn, size: 1Gi }
+    redis: { storageClass: longhorn, size: 1Gi }
+  imageChartStorage:
+    # ปิด redirect: ไม่อย่างนั้น registry ส่ง client ไปดึงจาก URL ของ S3 ภายใน cluster (*.svc) ที่ node resolve ไม่ได้
+    disableredirect: true
+    type: s3
+    s3:
+      existingSecret: harbor-s3        # REGISTRY_STORAGE_S3_ACCESSKEY / SECRETKEY
+      region: us-east-1
+      bucket: harbor
+      regionendpoint: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333   # มี regionendpoint → path-style อัตโนมัติ
+      v4auth: true
+
+database:
+  type: external
+  external:
+    host: pg-platform-rw.database.svc.cluster.local
+    port: "5432"
+    username: harbor
+    coreDatabase: harbor
+    existingSecret: harbor-db          # key "password"
+    sslmode: disable
+  maxIdleConns: 10
+  maxOpenConns: 50                     # ค่าเริ่มต้น 900 — pg-platform รับได้ 200 รวมทุก service
+
+redis:
+  type: internal
+  internal:
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits: { memory: 256Mi }
+
+core:
+  existingSecret: harbor-secrets       # key "secret"
+  existingXsrfSecret: harbor-secrets
+  existingXsrfSecretKey: CSRF_KEY
+  secretName: harbor-core-token        # tls.key / tls.crt สำหรับเซ็น token
+  extraEnvVars:
+    - name: CONFIG_OVERWRITE_JSON      # OIDC (Keycloak) — gitops/harbor/secrets.yaml
+      valueFrom:
+        secretKeyRef: { name: harbor-oidc, key: config.json }
+  resources:
+    requests: { cpu: 50m, memory: 256Mi }
+    limits: { memory: 512Mi }
+
+jobservice:
+  existingSecret: harbor-secrets
+  existingSecretKey: JOBSERVICE_SECRET
+  resources:
+    requests: { cpu: 20m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+registry:
+  existingSecret: harbor-secrets
+  existingSecretKey: REGISTRY_HTTP_SECRET
+  credentials:
+    existingSecret: harbor-registry-credentials   # REGISTRY_PASSWD / REGISTRY_HTPASSWD
+  registry:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 512Mi }
+  controller:
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 128Mi }
+
+portal:
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 128Mi }
+
+trivy:
+  enabled: false                       # สแกนช่องโหว่ — ปิดใน PoC (ขอ 200m CPU / 512Mi)
+metrics:
+  enabled: false

@@ -1,0 +1,54 @@
+# wave 64–65: Harbor 2.15.4 (chart harbor-helm 1.19.4) — image registry + proxy cache ของ docker.io, quay.io ...
+# ต้องมีก่อน: OpenBao secret/harbor/core, secret/harbor/registry, secret/postgres/harbor, secret/keycloak/clients (harbor),
+#            bucket "harbor" ใน SeaweedFS, client "harbor" ใน Keycloak — ดู docs/install/17-harbor.md
+#
+#   64 harbor-config  gitops/harbor/*.yaml — ExternalSecret, Certificate (ต้องมีก่อน pod ของ Harbor)
+#   65 harbor         chart + values gitops/harbor/values/harbor.yaml (multi-source)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "64"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/harbor                # ไม่ recursive — values/ ไม่ถูก apply
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "65"
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: 1.19.4
+      helm:
+        valueFiles: [$values/gitops/harbor/values/harbor.yaml]
+    - repoURL: https://github.com/tete192356789/K8s-Stackable.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
