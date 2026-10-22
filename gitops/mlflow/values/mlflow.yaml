@@ -111,8 +111,8 @@ ingress:
         - { path: /, pathType: Prefix }
 
 resources:
-  requests: { cpu: 100m, memory: 768Mi }
-  limits: { cpu: "1", memory: 1536Mi }
+  requests: { cpu: 100m, memory: 1Gi }    # ใช้จริงเกิน 1.5Gi ตอน login (ยังหาสาเหตุ) — วัดแล้วค่อยปรับ
+  limits: { cpu: "1", memory: 3Gi }
 
 serviceMonitor:
   enabled: false                       # /metrics ของปลั๊กอินไม่มี auth — เปิดทีหลังพร้อม NetworkPolicy

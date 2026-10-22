@@ -11,7 +11,7 @@
 | Database | `mlflow` (tracking) + `mlflow_auth` (ปลั๊กอิน: user / สิทธิ์ / session) บน `pg-platform` |
 | Artifact | SeaweedFS bucket `mlflow` — client อัปโหลดผ่าน MLflow (`--serve-artifacts`) ไม่ต้องถือ key ของ S3 |
 | Namespace | `mlflow` |
-| Resource | request 100m / 768Mi, limit 1 core / 1.5Gi, 1 worker (2 worker เกิน 1Gi → OOMKilled) |
+| Resource | request 100m / 1Gi, limit 1 core / 3Gi, 1 worker — 1.5Gi ยัง OOMKilled ตอน login (กำลังวัดค่าจริง) |
 | ไฟล์ใน repo | `gitops/apps/66-mlflow.yaml`, `gitops/mlflow/secrets.yaml`, `gitops/mlflow/values/mlflow.yaml`, `gitops/postgres/` (role `mlflow`), `scripts/mlflow-permissions.sh` |
 
 ### สิทธิ์
