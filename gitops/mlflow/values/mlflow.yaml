@@ -1,0 +1,120 @@
+# MLflow 3.17.1 + mlflow-oidc-auth 10.0.0 (chart community-charts/mlflow 1.11.7) — PoC
+#   image ของผู้ดูแลปลั๊กอิน (มี psycopg2 + boto3 ในตัว) แทน image ของ chart
+#   login: Keycloak (client mlflow) — ทุก group เข้าได้, platform-admins = admin
+#   สิทธิ์: สร้าง experiment / model ได้เฉพาะ data-engineers + platform-admins, analysts อ่านอย่างเดียว
+#     (RESTRICT_RESOURCE_CREATION + group-regex grant — ตั้งด้วย scripts/mlflow-permissions.sh หลังติดตั้ง)
+#   ไม่ใช้บล็อก oidcAuth ของ chart: สุ่ม SECRET_KEY ใหม่ทุก sync (lookup ใช้ไม่ได้ใน Argo CD) และ default MANAGE
+image:
+  repository: ghcr.io/mlflow-oidc/mlflow-tracking-server
+  tag: "3.17.1-10.0.0-20261014"
+
+initImages:
+  mlflowDbMigration:                   # init container ที่รัน migration ของ db mlflow
+    repository: ghcr.io/mlflow-oidc/mlflow-tracking-server
+    tag: "3.17.1-10.0.0-20261014"
+
+strategy:
+  type: Recreate                       # ไม่ให้ 2 pod migrate DB พร้อมกัน + ไม่ต้องใช้ที่ว่างเพิ่มตอนอัปเดต
+
+securityContext:                       # ค่าเริ่มต้นของ chart + readOnlyRootFilesystem: false (image ของปลั๊กอินเขียนไฟล์ชั่วคราว)
+  allowPrivilegeEscalation: false
+  capabilities: { drop: [ALL] }
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+
+backendStore:
+  databaseMigration: true
+  postgres:
+    enabled: true
+    host: pg-platform-rw.database.svc.cluster.local
+    port: 5432
+    database: mlflow
+    driver: psycopg2
+  existingDatabaseSecret:
+    name: mlflow-db
+    usernameKey: username
+    passwordKey: password
+
+artifactRoot:
+  proxiedArtifactStorage: true         # client อัปโหลด artifact ผ่าน MLflow — ไม่ต้องถือ key ของ S3
+  s3:
+    enabled: true
+    bucket: mlflow
+    path: ""
+    existingSecret:
+      name: mlflow-s3
+      keyOfAccessKeyId: AWS_ACCESS_KEY_ID
+      keyOfSecretAccessKey: AWS_SECRET_ACCESS_KEY
+
+oidcAuth:
+  enabled: false
+
+extraArgs:
+  appName: oidc-auth                   # = mlflow server --app-name oidc-auth
+  workers: "2"                         # ค่าเริ่มต้น 4
+
+extraEnvVars:
+  # S3 (SeaweedFS) ภายใน cluster
+  MLFLOW_S3_ENDPOINT_URL: http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+  MLFLOW_BOTO_CLIENT_ADDRESSING_STYLE: path
+  AWS_DEFAULT_REGION: us-east-1
+  # OIDC (Keycloak)
+  OIDC_DISCOVERY_URL: https://keycloak.172.19.10.62.sslip.io/realms/platform/.well-known/openid-configuration
+  OIDC_ISSUER: https://keycloak.172.19.10.62.sslip.io/realms/platform
+  OIDC_CLIENT_ID: mlflow
+  OIDC_AUDIENCE: mlflow
+  OIDC_REDIRECT_URI: https://mlflow.172.19.10.62.sslip.io/callback
+  OIDC_PROVIDER_DISPLAY_NAME: Login with Keycloak
+  OIDC_GROUPS_ATTRIBUTE: groups
+  OIDC_GROUP_NAME: platform-admins,data-engineers,analysts      # group ที่ login ได้
+  OIDC_ADMIN_GROUP_NAME: platform-admins
+  OIDC_USERNAME_FIELD: preferred_username                      # ชื่อ user = username ใน Keycloak (เหมือนแอปอื่น)
+  OIDC_USE_REFRESH_TOKEN: "true"                               # session ไม่หลุดทุก 5 นาที (อายุ access token ของ Keycloak)
+  # สิทธิ์
+  DEFAULT_MLFLOW_PERMISSION: NO_PERMISSIONS                    # ไม่มี grant = มองไม่เห็น (grant มาจาก group-regex)
+  RESTRICT_RESOURCE_CREATION: "true"                           # สร้างได้เฉพาะคนที่มี EDIT ผ่าน regex / admin
+  # อยู่หลัง Traefik
+  SESSION_COOKIE_SECURE: "true"
+  TRUSTED_PROXIES: 10.244.0.0/16                               # pod CIDR (Calico) — Traefik เป็น pod
+  # เชื่อ internal CA (Keycloak)
+  SSL_CERT_FILE: /etc/platform-ca/ca.crt
+  REQUESTS_CA_BUNDLE: /etc/platform-ca/ca.crt
+
+extraSecretNamesForEnvFrom:
+  - mlflow-oidc-env                    # OIDC_CLIENT_SECRET, SECRET_KEY, OIDC_USERS_DB_URI
+
+serverAllowedHosts:                    # MLflow 3.x บล็อก hostname ที่ไม่รู้จัก — host ของ ingress chart ใส่ให้เอง
+  - mlflow.mlflow.svc.cluster.local    # client ภายใน cluster (Airflow)
+  - mlflow.mlflow.svc
+  - mlflow
+
+extraVolumes:
+  - name: platform-ca
+    secret:
+      secretName: mlflow-ca-trust
+      items: [{ key: ca.crt, path: ca.crt }]
+  - name: tmp
+    emptyDir: {}
+extraVolumeMounts:
+  - { name: platform-ca, mountPath: /etc/platform-ca, readOnly: true }
+  - { name: tmp, mountPath: /tmp }
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  hosts:
+    - host: mlflow.172.19.10.62.sslip.io
+      paths:
+        - { path: /, pathType: Prefix }
+
+resources:
+  requests: { cpu: 100m, memory: 384Mi }
+  limits: { cpu: "1", memory: 1Gi }
+
+serviceMonitor:
+  enabled: false                       # /metrics ของปลั๊กอินไม่มี auth — เปิดทีหลังพร้อม NetworkPolicy

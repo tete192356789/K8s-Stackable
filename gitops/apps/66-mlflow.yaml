@@ -1,0 +1,54 @@
+# wave 66–67: MLflow 3.17.1 + mlflow-oidc-auth 10.0.0 (chart community-charts/mlflow 1.11.7)
+# ต้องมีก่อน: OpenBao secret/postgres/mlflow, secret/mlflow/app, secret/keycloak/clients (mlflow),
+#            bucket "mlflow" ใน SeaweedFS, client "mlflow" ใน Keycloak — ดู docs/install/18-mlflow.md
+#
+#   66 mlflow-config  gitops/mlflow/*.yaml — ExternalSecret, Certificate
+#   67 mlflow         chart + values gitops/mlflow/values/mlflow.yaml (multi-source)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlflow-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "66"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/tete192356789/K8s-Stackable.git
+    targetRevision: main
+    path: gitops/mlflow                # ไม่ recursive — values/ ไม่ถูก apply
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mlflow
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mlflow
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+    argocd.argoproj.io/sync-wave: "67"
+spec:
+  project: default
+  sources:
+    - repoURL: https://community-charts.github.io/helm-charts
+      chart: mlflow
+      targetRevision: 1.11.7
+      helm:
+        valueFiles: [$values/gitops/mlflow/values/mlflow.yaml]
+    - repoURL: https://github.com/tete192356789/K8s-Stackable.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mlflow
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 10, backoff: { duration: 30s, factor: 2, maxDuration: 5m } }

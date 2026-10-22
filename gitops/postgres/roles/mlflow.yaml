@@ -1,0 +1,52 @@
+# Role + database ของ MLflow บน pg-platform
+# password อยู่ใน OpenBao: secret/postgres/mlflow (username, password)
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: pg-role-mlflow
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: openbao }
+  target:
+    name: pg-role-mlflow
+    template:
+      type: kubernetes.io/basic-auth
+      metadata:
+        labels:
+          cnpg.io/reload: "true"
+  data:
+    - secretKey: username
+      remoteRef: { key: postgres/mlflow, property: username }
+    - secretKey: password
+      remoteRef: { key: postgres/mlflow, property: password }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: mlflow
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  name: mlflow
+  owner: mlflow
+  cluster:
+    name: pg-platform
+---
+# database แยกสำหรับปลั๊กอิน mlflow-oidc-auth (user, สิทธิ์, session) — ใช้ role mlflow เดียวกัน
+# แยกจาก db mlflow เพราะทั้งสองใช้ตาราง alembic_version ชื่อเดียวกัน
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: mlflow-auth
+  namespace: database
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  name: mlflow_auth
+  owner: mlflow
+  cluster:
+    name: pg-platform

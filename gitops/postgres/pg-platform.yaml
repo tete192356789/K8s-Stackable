@@ -51,3 +51,8 @@ spec:
         login: true
         passwordSecret:
           name: pg-role-harbor
+      - name: mlflow
+        ensure: present
+        login: true
+        passwordSecret:
+          name: pg-role-mlflow
