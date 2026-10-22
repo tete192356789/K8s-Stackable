@@ -53,7 +53,7 @@ oidcAuth:
 
 extraArgs:
   appName: oidc-auth                   # = mlflow server --app-name oidc-auth
-  workers: "2"                         # ค่าเริ่มต้น 4
+  workers: "1"                         # ค่าเริ่มต้น 4 — แต่ละ worker โหลด MLflow + ปลั๊กอินทั้งชุด (หลายร้อย MB); 2 worker เกิน 1Gi → OOMKilled
 
 extraEnvVars:
   # S3 (SeaweedFS) ภายใน cluster
@@ -111,8 +111,8 @@ ingress:
         - { path: /, pathType: Prefix }
 
 resources:
-  requests: { cpu: 100m, memory: 384Mi }
-  limits: { cpu: "1", memory: 1Gi }
+  requests: { cpu: 100m, memory: 768Mi }
+  limits: { cpu: "1", memory: 1536Mi }
 
 serviceMonitor:
   enabled: false                       # /metrics ของปลั๊กอินไม่มี auth — เปิดทีหลังพร้อม NetworkPolicy

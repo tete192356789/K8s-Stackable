@@ -11,7 +11,7 @@
 | Database | `mlflow` (tracking) + `mlflow_auth` (ปลั๊กอิน: user / สิทธิ์ / session) บน `pg-platform` |
 | Artifact | SeaweedFS bucket `mlflow` — client อัปโหลดผ่าน MLflow (`--serve-artifacts`) ไม่ต้องถือ key ของ S3 |
 | Namespace | `mlflow` |
-| Resource | request 100m / 384Mi, limit 1 core / 1Gi, 2 worker |
+| Resource | request 100m / 768Mi, limit 1 core / 1.5Gi, 1 worker (2 worker เกิน 1Gi → OOMKilled) |
 | ไฟล์ใน repo | `gitops/apps/66-mlflow.yaml`, `gitops/mlflow/secrets.yaml`, `gitops/mlflow/values/mlflow.yaml`, `gitops/postgres/` (role `mlflow`), `scripts/mlflow-permissions.sh` |
 
 ### สิทธิ์
@@ -170,6 +170,7 @@ UI → experiment `e2e-test` → run `hello` → ต้องเห็น metric
 | analyst สร้าง experiment ได้ | ยังไม่ได้รัน `mlflow-permissions.sh` หรือ `DEFAULT_MLFLOW_PERMISSION` ไม่ใช่ `NO_PERMISSIONS` | ขั้นที่ 5 |
 | engineer สร้าง experiment ไม่ได้ | ยังไม่มี grant `.*` = EDIT ของ `data-engineers` | ขั้นที่ 5 |
 | หลุด login ทุก ~5 นาที | refresh token ใช้ไม่ได้ | client `mlflow` ต้องมี `offline_access` (Optional) |
+| pod restart วน, `Last State: OOMKilled`, probe `connection refused` | RAM เกิน limit (แต่ละ worker โหลด MLflow ทั้งชุด) | ลด `extraArgs.workers` หรือเพิ่ม `resources.limits.memory` |
 | `log_artifact` error / upload ค้าง | MLflow เขียน S3 ไม่ได้ | bucket `mlflow` ต้องมี, `kubectl -n mlflow logs deploy/mlflow` |
 
 ดู log
