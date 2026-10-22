@@ -95,11 +95,9 @@ extraVolumes:
     secret:
       secretName: mlflow-ca-trust
       items: [{ key: ca.crt, path: ca.crt }]
-  - name: tmp
-    emptyDir: {}
+  # /tmp มีให้แล้วใน chart (emptyDir "tmp") — ห้ามเพิ่มซ้ำ
 extraVolumeMounts:
   - { name: platform-ca, mountPath: /etc/platform-ca, readOnly: true }
-  - { name: tmp, mountPath: /tmp }
 
 ingress:
   enabled: true
